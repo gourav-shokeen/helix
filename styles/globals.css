@@ -601,3 +601,10 @@ a {
 [data-theme='light'] .tiptap-editor .mermaid-block svg circle[fill="white"] {
   fill: revert !important;
 }
+.mermaid-block svg {
+  cursor: default !important;
+}
+.mermaid-block__content,
+.mermaid-block__content * {
+  cursor: default !important;
+}

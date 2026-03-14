@@ -129,7 +129,7 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
       ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
       isPanning.current = true
       panStart.current = { x: e.clientX - panOffset.current.x, y: e.clientY - panOffset.current.y }
-      wrapper.style.cursor = 'grabbing'
+      
     }
     const onPointerMove = (e: PointerEvent) => {
       if (!isPanning.current) return
@@ -141,7 +141,6 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
       if (!isPanning.current) return
       isPanning.current = false
       ;(e.currentTarget as Element).releasePointerCapture(e.pointerId)
-      wrapper.style.cursor = 'grab'
     }
     wrapper.addEventListener('pointerdown', onPointerDown)
     wrapper.addEventListener('pointermove', onPointerMove)
@@ -201,13 +200,7 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
                 <div ref={containerRef} dangerouslySetInnerHTML={{ __html: svg }}
                   style={{ display: 'inline-block', minWidth: 800, padding: '1rem', transformOrigin: 'top left', willChange: 'transform' }} />
               </div>
-              <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', alignItems: 'center', gap: 2, zIndex: 5, background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 6px' }}>
-                <button onClick={e => zoomOut(e)} style={zoomBtnStyle}>−</button>
-                <span style={{ color: 'var(--text-muted)', fontSize: 10, minWidth: 34, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace' }}>{Math.round(scale * 100)}%</span>
-                <button onClick={e => zoomIn(e)} style={zoomBtnStyle}>+</button>
-                <span style={{ color: 'var(--border)', margin: '0 2px' }}>|</span>
-                <button onClick={resetView} style={{ ...zoomBtnStyle, fontSize: 12 }}>↺</button>
-              </div>
+              <button onClick={resetView} title="Reset view" style={{ position: 'absolute', bottom: 8, right: 8, background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 14, padding: '3px 8px', zIndex: 5, lineHeight: 1 }}>↺</button>
             </>
           ) : (
             <div style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', padding: '1rem' }}>Rendering diagram…</div>

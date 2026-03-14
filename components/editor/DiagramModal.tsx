@@ -377,19 +377,16 @@ export function DiagramModal({ onInsert, onClose, initialDsl, mode = 'insert' }:
           <div style={{ flex: '0 0 42%', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)', minWidth: 0, overflow: 'hidden', position: 'relative' as const }}>
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               {hasVisualEditor && <div style={{ fontSize: 10, color: 'var(--accent)', padding: '0.4rem 0.75rem', background: 'var(--accent-dim)', borderRight: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>✦ Visual Editor</div>}
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '0.4rem 0.75rem', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{hasVisualEditor ? 'DSL (auto-synced)' : 'Mermaid DSL'}</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, maxWidth: '100%' }}>
               {hasVisualEditor && (
-                <div style={{ overflowY: 'auto', overflowX: 'hidden', flexShrink: 0, maxHeight: '58%', padding: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, padding: '0.75rem' }}>
                   {diagramType === 'Flowchart' && <FlowEditor nodes={flowNodes} edges={flowEdges} onChange={handleFlowChange} />}
                   {diagramType === 'Sequence' && <SeqEditor participants={seqParticipants} messages={seqMessages} onChange={handleSeqChange} />}
                   {diagramType === 'Gantt' && <GanttEditor title={ganttTitle} tasks={ganttTasks} onTitleChange={handleGanttTitleChange} onTaskChange={handleGanttTaskChange} onAddTask={handleAddGanttTask} onRemoveTask={handleRemoveGanttTask} />}
                   {diagramType === 'ER' && <ErEditor entities={erEntities} relations={erRelations} onChange={handleErChange} />}
                 </div>
               )}
-              <textarea ref={textareaRef} value={syntax} onChange={e => handleDslChange(e.target.value)} spellCheck={false}
-                style={{ flex: 1, background: 'var(--bg)', color: 'var(--text-primary)', border: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, lineHeight: 1.7, outline: 'none', padding: '0.75rem 1rem', resize: 'none', caretColor: 'var(--accent)', overflowY: 'auto', opacity: hasVisualEditor ? 0.7 : 1 }} />
             </div>
           </div>
           <div style={{ flex: '0 0 58%', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', position: 'relative' as const }}>

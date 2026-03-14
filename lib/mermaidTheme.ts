@@ -44,8 +44,21 @@ export function getMermaidConfig() {
   }
 }
 
+// Pre-cleans SVG string before it hits the DOM — eliminates flash of light colors
 export function fixSvgString(svgString: string): string {
-  return svgString
+  const isDark = typeof document !== 'undefined' && document.documentElement.dataset.theme !== 'light'
+  if (!isDark) return svgString
+
+  return svgString.replace(/fill="([^"]*)"/g, (match, fill) => {
+    // Strip surrounding quotes Mermaid sometimes bakes in e.g. `"hsl(...)"`
+    const c = fill.trim().replace(/^"|"$/g, '').toLowerCase()
+    if (c === 'none' || c === 'transparent') return match
+    const rgb = parseColorSimple(c)
+    if (rgb && (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) > 140) {
+      return 'fill="#1a1a1e"'
+    }
+    return match
+  })
 }
 
 // Called after dangerouslySetInnerHTML — operates on real DOM elements

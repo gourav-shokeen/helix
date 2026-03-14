@@ -1,13 +1,37 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { useBrainStore, type BrainFile } from '@/store/brainStore'
+import React from 'react'
 
 interface BrainPanelProps {
   onClose: () => void
   docContent?: string
 }
+
+const TabButton = ({ active, onClick, children }: { active: boolean, onClick: () => void, children: React.ReactNode }) => (
+  <button
+    onClick={onClick}
+    style={{
+      padding: '0.25rem 0.75rem',
+      background: active ? 'var(--surface-hover)' : 'transparent',
+      border: 'none',
+      color: active ? 'var(--text)' : 'var(--text-muted)',
+      borderRadius: '4px',
+      fontSize: '12px',
+      fontWeight: 500,
+      cursor: 'pointer',
+    }}
+  >
+    {children}
+  </button>
+);
+
+const GraphView = dynamic(() => import('../graph/KnowledgeGraph').then(mod => mod.KnowledgeGraph), {
+  ssr: false,
+  loading: () => <p>Loading graph...</p>
+});
 
 type Tab = 'map' | 'search' | 'daily'
 
@@ -17,8 +41,7 @@ interface SearchResult {
   context: string
 }
 
-export function BrainPanel({ onClose, docContent = '' }: BrainPanelProps) {
-  const { user } = useAuth()
+function BrainPanelComponent({ onClose, docContent = '' }: BrainPanelProps) {
   const { fileMap, summary, lastAnalysed, setAnalysis } = useBrainStore()
   const [tab, setTab] = useState<Tab>('map')
   const [input, setInput] = useState('')
@@ -98,104 +121,69 @@ export function BrainPanel({ onClose, docContent = '' }: BrainPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pastedContent: payload }),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to analyse')
-
-      const files = Array.isArray(json.files) ? (json.files as BrainFile[]) : []
-      setAnalysis({ fileMap: files, summary: String(json.summary || '') })
-      if (files[0]?.path) setSelectedPath(files[0].path)
-    } catch (err) {
-      setError(`⚠ ${String(err)}`)
+      if (!res.ok) throw new Error('Failed to analyse')
+      const data = await res.json()
+      setAnalysis(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'An unknown error occurred')
     } finally {
       setAnalysisLoading(false)
     }
   }
 
-  const runSearch = async () => {
-    if (!searchQuery.trim() || fileMap.length === 0) return
+  const search = async () => {
+    if (!searchQuery.trim()) return
     setSearchLoading(true)
     setError('')
-    setSearchResults([])
     try {
       const res = await fetch('/api/ai/brain-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery.trim(), fileMap }),
+        body: JSON.stringify({ query: searchQuery }),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Search failed')
-      setSearchResults(Array.isArray(json.results) ? (json.results as SearchResult[]) : [])
-    } catch (err) {
-      setError(`⚠ ${String(err)}`)
+      if (!res.ok) throw new Error('Failed to search')
+      const { results } = await res.json()
+      setSearchResults(results)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'An unknown error occurred')
     } finally {
       setSearchLoading(false)
     }
   }
 
-  const runDaily = async () => {
-    const value = gitInput.trim()
-    if (!value) return
+  const getDailySummary = async () => {
+    if (!gitInput.trim()) return
     setDailyLoading(true)
     setError('')
     try {
       const res = await fetch('/api/ai/brain-daily', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gitInput: value }),
+        body: JSON.stringify({ repoUrl: gitInput }),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to generate summary')
-      setDailySummary(String(json.summary || ''))
-    } catch (err) {
-      setError(`⚠ ${String(err)}`)
-    } finally {
-      setDailyLoading(false)
+      if (!res.ok) throw new Error('Failed to get daily summary')
+      const { summary: newSummary } = await res.json()
+      setDailySummary(newSummary)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'An unknown error occurred')
     }
   }
 
-  const insertIntoDevlog = async () => {
-    const value = dailySummary.trim()
-    if (!user?.id || !value) return
-
-    setInsertStatus('Saving to Dev Log...')
+  const handleInsert = async () => {
+    if (!selectedFile) return
+    setInsertStatus('pending')
     try {
-      const date = new Date().toISOString().slice(0, 10)
-      const { data: existing } = await supabase
-        .from('dev_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('date', date)
-        .maybeSingle()
-
-      const existingHtml = String(existing?.content || '<h2>What I built</h2><p></p><h2>What\'s next</h2><p></p><h2>Blockers</h2><p></p>')
-      const nextHtml = existingHtml.replace(
-        '<h2>What I built</h2>',
-        `<h2>What I built</h2><p>${value.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`
-      )
-
-      const { error: saveError } = await supabase
-        .from('dev_logs')
-        .upsert(
-          {
-            user_id: user.id,
-            date,
-            content: nextHtml,
-            project_id: existing?.project_id ?? null,
-            mood: existing?.mood ?? null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,date' }
-        )
-
-      if (saveError) throw saveError
-      setInsertStatus('Inserted into today\'s Dev Log')
-      setTimeout(() => setInsertStatus(''), 1600)
-    } catch (err) {
-      setInsertStatus(`Failed: ${String(err)}`)
+      const { data, error: err } = await supabase.storage.from('brain').download(selectedFile.path)
+      if (err) throw err
+      const content = await data.text()
+      window.dispatchEvent(new CustomEvent('helix:editor:insert', { detail: { content } }))
+      setInsertStatus('success')
+      setTimeout(() => setInsertStatus(''), 2000)
+    } catch (e) {
+      setInsertStatus('error')
+      setTimeout(() => setInsertStatus(''), 2000)
     }
   }
-
-  const needsInput = fileMap.length === 0
 
   return (
     <aside
@@ -211,187 +199,165 @@ export function BrainPanel({ onClose, docContent = '' }: BrainPanelProps) {
         overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', padding: '0.6rem 0.75rem', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '12px' }}>⬡ Codebase Brain</span>
-        <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '16px' }}>×</button>
-      </div>
-
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
-        {(['map', 'search', 'daily'] as Tab[]).map((item) => (
-          <button
-            key={item}
-            onClick={() => setTab(item)}
-            style={{
-              flex: 1,
-              padding: '0.45rem 0',
-              background: tab === item ? 'var(--accent-dim)' : 'none',
-              borderBottom: tab === item ? '2px solid var(--accent)' : '2px solid transparent',
-              border: 'none',
-              color: tab === item ? 'var(--accent)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              fontSize: '11px',
-              fontFamily: 'JetBrains Mono, monospace',
-              transition: 'all 0.15s',
-            }}
-          >
-            {item === 'map' ? 'Map' : item === 'search' ? 'Search' : 'Daily Summary'}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', position: 'relative' }}>
-        {needsInput && (
-          <div style={{ marginBottom: '0.75rem', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-            <div style={{ padding: '0.45rem 0.6rem', fontSize: 10, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
-              Paste folder tree and/or package.json content
-            </div>
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder={docContent ? 'Paste content or leave empty to analyse current doc text' : 'Paste tree/package.json here'}
-              style={{ width: '100%', height: 140, border: 'none', outline: 'none', resize: 'vertical', background: 'var(--bg)', color: 'var(--text-primary)', fontSize: 11, lineHeight: 1.5, fontFamily: 'JetBrains Mono, monospace', padding: '0.55rem' }}
-            />
-            <div style={{ padding: '0.55rem', borderTop: '1px solid var(--border)' }}>
-              <button
-                onClick={analyse}
-                disabled={analysisLoading}
-                style={{ background: 'var(--accent)', border: 'none', borderRadius: 4, color: 'var(--status-text)', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '0.35rem 0.65rem' }}
-              >
-                {analysisLoading ? 'Analysing…' : 'Analyse'}
-              </button>
-            </div>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '14px', fontWeight: 600 }}>Brain</span>
+          <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: '6px', padding: '2px' }}>
+            <TabButton active={tab === 'map'} onClick={() => setTab('map')}>Map</TabButton>
+            <TabButton active={tab === 'search'} onClick={() => setTab('search')}>Search</TabButton>
+            <TabButton active={tab === 'daily'} onClick={() => setTab('daily')}>Daily</TabButton>
           </div>
-        )}
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '20px', cursor: 'pointer' }}>&times;</button>
+      </header>
 
-        {!needsInput && (
-          <div style={{ marginBottom: '0.75rem', border: '1px solid var(--border)', borderRadius: 6, padding: '0.55rem', background: 'var(--surface)' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-              Last analysed: {lastAnalysed ? new Date(lastAnalysed).toLocaleString() : 'n/a'}
-            </div>
-            {summary && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-secondary)' }}>{summary}</div>}
-          </div>
-        )}
-
-        {error && (
-          <div style={{ color: 'var(--red)', fontSize: '12px', whiteSpace: 'pre-wrap', marginBottom: '0.75rem' }}>{error}</div>
-        )}
-
-        {!needsInput && tab === 'map' && (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <button onClick={analyse} disabled={analysisLoading} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, padding: '0.25rem 0.55rem' }}>{analysisLoading ? 'Updating…' : 'Update'}</button>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: 10 }}>
-                <input type="checkbox" checked={importGraph} onChange={(e) => setImportGraph(e.target.checked)} />
-                Import graph
-              </label>
-            </div>
-
-            <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 10 }}>
-              {tree.map(([folder, files]) => {
-                const collapsed = Boolean(collapsedFolders[folder])
-                return (
-                  <div key={folder}>
-                    <button onClick={() => setCollapsedFolders((prev) => ({ ...prev, [folder]: !collapsed }))} style={{ width: '100%', background: 'var(--surface)', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, padding: '0.4rem 0.5rem', textAlign: 'left' }}>{collapsed ? '▸' : '▾'} {folder}</button>
-                    {!collapsed && files.map((file) => (
-                      <button
-                        key={file.path}
-                        onClick={() => setSelectedPath(file.path)}
-                        style={{ width: '100%', background: selectedPath === file.path ? 'var(--accent-dim)' : 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: selectedPath === file.path ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, padding: '0.35rem 0.5rem 0.35rem 1.5rem', textAlign: 'left' }}
-                      >
-                        {file.path}
-                      </button>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-
-            {importGraph && (
-              <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: '#0a0a14', marginBottom: 10, padding: 6 }}>
-                <svg width="100%" height="240" viewBox="0 0 380 240">
-                  <defs>
-                    <marker id="brain-arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-                      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
-                    </marker>
-                  </defs>
-                  {graphEdges.map((edge, index) => {
-                    const from = graphNodes.find((item) => item.path === edge.from)
-                    const to = graphNodes.find((item) => item.path === edge.to)
-                    if (!from || !to) return null
-                    return <line key={`${edge.from}-${edge.to}-${index}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#333" strokeWidth="1" markerEnd="url(#brain-arrow)" />
-                  })}
-                  {graphNodes.map((node) => (
-                    <g key={node.path} onClick={() => setSelectedPath(node.path)} style={{ cursor: 'pointer' }}>
-                      <circle cx={node.x} cy={node.y} r={6} fill="#00d4a1" opacity={selectedPath === node.path ? 1 : 0.8} />
-                      <text x={node.x + 8} y={node.y + 3} fill={selectedPath === node.path ? '#00d4a1' : '#7a7a90'} fontSize="9" fontFamily="JetBrains Mono, monospace">
-                        {node.path.split('/').slice(-1)[0]}
-                      </text>
-                    </g>
+      <main style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+        {tab === 'map' && (
+          <div style={{ display: 'flex', flex: 1 }}>
+            <div style={{ width: '220px', borderRight: '1px solid var(--border)', overflowY: 'auto', padding: '0.5rem' }}>
+              <div style={{ padding: '0.5rem', fontSize: '11px', color: 'var(--text-muted)' }}>
+                {fileMap.length} files analysed.
+                <br />
+                Last: {lastAnalysed ? new Date(lastAnalysed).toLocaleString() : 'never'}
+              </div>
+              {tree.map(([folder, files]) => (
+                <div key={folder}>
+                  <button
+                    onClick={() => setCollapsedFolders(prev => ({ ...prev, [folder]: !prev[folder] }))}
+                    style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '11px', fontWeight: 600, padding: '0.5rem', cursor: 'pointer' }}
+                  >
+                    {collapsedFolders[folder] ? '▶' : '▼'} {folder}
+                  </button>
+                  {!collapsedFolders[folder] && files.map(file => (
+                    <button
+                      key={file.path}
+                      onClick={() => setSelectedPath(file.path)}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        background: selectedPath === file.path ? 'var(--surface-hover)' : 'transparent',
+                        border: 'none',
+                        color: 'var(--text)',
+                        fontSize: '12px',
+                        padding: '0.25rem 0.5rem 0.25rem 1.5rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {file.path.split('/').pop()}
+                    </button>
                   ))}
-                </svg>
-              </div>
-            )}
-
-            {selectedFile && (
-              <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '0.55rem' }}>
-                <div style={{ color: 'var(--accent)', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>{selectedFile.path}</div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 4 }}>{selectedFile.purpose}</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 8 }}>Calls from: {(selectedFile.calledBy || []).join(', ') || '—'}</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 4 }}>Imported by: {reverseLinks.join(', ') || '—'}</div>
-              </div>
-            )}
-          </>
-        )}
-
-        {!needsInput && tab === 'search' && (
-          <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Where is useEffect used?"
-                style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, outline: 'none', padding: '0.35rem 0.45rem' }}
-              />
-              <button onClick={runSearch} disabled={searchLoading} style={{ background: 'var(--accent)', border: 'none', borderRadius: 4, color: 'var(--status-text)', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '0.35rem 0.55rem' }}>{searchLoading ? '…' : 'Search'}</button>
-            </div>
-
-            <div style={{ display: 'grid', gap: 8 }}>
-              {searchResults.map((item, index) => (
-                <div key={`${item.file}-${index}`} style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '0.5rem' }}>
-                  <div style={{ color: 'var(--accent)', fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>{item.file}</div>
-                  <div style={{ color: 'var(--text-primary)', fontSize: 11, marginTop: 4 }}>{item.snippet}</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 4 }}>{item.context}</div>
                 </div>
               ))}
-              {searchResults.length === 0 && !searchLoading && <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>No results yet.</div>}
             </div>
-          </>
-        )}
-
-        {!needsInput && tab === 'daily' && (
-          <>
-            <textarea
-              value={gitInput}
-              onChange={(event) => setGitInput(event.target.value)}
-              placeholder="Paste git diff --stat HEAD~1 or git log --oneline -10"
-              style={{ width: '100%', minHeight: 120, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, lineHeight: 1.5, outline: 'none', padding: '0.55rem', resize: 'vertical' }}
-            />
-            <div style={{ marginTop: 8 }}>
-              <button onClick={runDaily} disabled={dailyLoading} style={{ background: 'var(--accent)', border: 'none', borderRadius: 4, color: 'var(--status-text)', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '0.35rem 0.55rem' }}>{dailyLoading ? 'Generating…' : 'Generate summary'}</button>
+            <div style={{ flex: 1, position: 'relative', overflow: 'auto' }}>
+              {importGraph ? (
+                <GraphView nodes={graphNodes} edges={graphEdges} onNodeClick={(p) => setSelectedPath(p)} selectedNode={selectedPath} />
+              ) : (
+                <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  <button onClick={() => setImportGraph(true)} style={{ marginBottom: '1rem' }}>Load Graph</button>
+                  <div>Graph view disabled by default to save bundle size.</div>
+                </div>
+              )}
             </div>
-
-            {dailySummary && (
-              <div style={{ marginTop: 10, border: '1px solid var(--border)', borderRadius: 6, padding: '0.65rem' }}>
-                <div style={{ color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1.6 }}>{dailySummary}</div>
-                <button onClick={insertIntoDevlog} style={{ marginTop: 8, background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 4, color: 'var(--accent)', cursor: 'pointer', fontSize: 10, padding: '0.3rem 0.55rem' }}>
-                  Insert into Dev Log
+            {selectedFile && (
+              <div style={{ width: '280px', borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: '1rem', fontSize: '12px' }}>
+                <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '13px' }}>{selectedFile.path.split('/').pop()}</h3>
+                <p style={{ color: 'var(--text-secondary)', margin: '0 0 1rem 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{selectedFile.purpose}</p>
+                <h4 style={{ margin: '1rem 0 0.5rem 0', fontSize: '11px', color: 'var(--text-muted)' }}>Calls</h4>
+                {(selectedFile.calls || []).map(c => <div key={c}>{c}</div>)}
+                <h4 style={{ margin: '1rem 0 0.5rem 0', fontSize: '11px', color: 'var(--text-muted)' }}>Called By</h4>
+                {reverseLinks.map(l => <div key={l}>{l}</div>)}
+                <button
+                  onClick={handleInsert}
+                  style={{
+                    marginTop: '1rem',
+                    width: '100%',
+                    padding: '0.5rem',
+                    background: insertStatus === 'success' ? 'var(--green-solid)' : insertStatus === 'error' ? 'var(--red-solid)' : 'var(--accent)',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: 'var(--status-text)',
+                    cursor: 'pointer',
+                  }}
+                  disabled={insertStatus === 'pending'}
+                >
+                  {insertStatus === 'pending' ? 'Inserting...' : insertStatus === 'success' ? 'Inserted!' : insertStatus === 'error' ? 'Error!' : 'Insert into Editor'}
                 </button>
-                {insertStatus && <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: 10 }}>{insertStatus}</div>}
               </div>
             )}
-          </>
+          </div>
         )}
-      </div>
+        {tab === 'search' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && search()}
+                placeholder="Search code context..."
+                style={{ flex: 1, padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)' }}
+              />
+              <button onClick={search} disabled={searchLoading} style={{ padding: '0.5rem 1rem', background: 'var(--accent)', border: 'none', borderRadius: '4px', color: 'var(--status-text)', cursor: 'pointer' }}>
+                {searchLoading ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {searchResults.map((r, i) => (
+                <div key={i} style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--surface)', borderRadius: '8px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '0.5rem' }}>{r.file}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {r.snippet}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {tab === 'daily' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+              <input
+                type="text"
+                value={gitInput}
+                onChange={e => setGitInput(e.target.value)}
+                placeholder="Enter GitHub repo URL (e.g. owner/repo)"
+                style={{ flex: 1, padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)' }}
+              />
+              <button onClick={getDailySummary} disabled={dailyLoading} style={{ padding: '0.5rem 1rem', background: 'var(--accent)', border: 'none', borderRadius: '4px', color: 'var(--status-text)', cursor: 'pointer' }}>
+                {dailyLoading ? 'Summarizing...' : 'Get Daily Summary'}
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-secondary)' }}>
+              {dailySummary}
+            </div>
+          </div>
+        )}
+      </main>
+
+      <footer style={{ padding: '0.5rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <input
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Paste code or describe a file to analyse..."
+          style={{ flex: 1, padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)' }}
+        />
+        <button onClick={analyse} disabled={analysisLoading} style={{ padding: '0.5rem 1rem', background: 'var(--accent)', border: 'none', borderRadius: '4px', color: 'var(--status-text)', cursor: 'pointer' }}>
+          {analysisLoading ? 'Analysing...' : 'Analyse'}
+        </button>
+        {error && <div style={{ color: 'var(--red)', fontSize: '11px' }}>{error}</div>}
+      </footer>
     </aside>
   )
 }
+
+
+
+
+export const BrainPanel = React.memo(BrainPanelComponent)
+

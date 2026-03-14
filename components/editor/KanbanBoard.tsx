@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import React from 'react'
 
 export type KanbanColumnKey = 'idea' | 'building' | 'testing' | 'done'
 
@@ -19,14 +20,16 @@ export interface KanbanBoardData {
   columns: Record<KanbanColumnKey, KanbanCardItem[]>
 }
 
-const DEFAULT_BOARD: KanbanBoardData = {
+export const defaultBoardData = (): KanbanBoardData => ({
   columns: {
     idea: [],
     building: [],
     testing: [],
     done: [],
   },
-}
+})
+
+
 
 const COLUMN_CONFIG: Array<{ key: KanbanColumnKey; title: string }> = [
   { key: 'idea', title: 'Idea' },
@@ -47,9 +50,9 @@ interface KanbanBoardProps {
   focusCardTitle?: string | null
 }
 
-export function KanbanBoard({ boardId, projectId, compact = false, onDataChange, externalData, focusCardTitle }: KanbanBoardProps) {
+export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId, compact = false, onDataChange, externalData, focusCardTitle }: KanbanBoardProps) {
   const supabase = useMemo(() => createClient(), [])
-  const [boardData, setBoardData] = useState<KanbanBoardData>(DEFAULT_BOARD)
+    const [boardData, setBoardData] = useState<KanbanBoardData>(defaultBoardData())
   const [loading, setLoading] = useState(true)
   const [addingTo, setAddingTo] = useState<KanbanColumnKey | null>(null)
   const [newTitle, setNewTitle] = useState('')
@@ -57,7 +60,7 @@ export function KanbanBoard({ boardId, projectId, compact = false, onDataChange,
   const dragRef = useRef<{ cardId: string; fromCol: KanbanColumnKey } | null>(null)
 
   const mergeData = useCallback((raw: unknown): KanbanBoardData => {
-    if (!raw || typeof raw !== 'object') return DEFAULT_BOARD
+    if (!raw || typeof raw !== 'object') return defaultBoardData()
     const candidate = raw as Partial<KanbanBoardData>
     const cols = candidate.columns ?? {}
     return {
@@ -101,27 +104,12 @@ export function KanbanBoard({ boardId, projectId, compact = false, onDataChange,
       })
       .subscribe()
 
-    return () => { void supabase.removeChannel(channel) }
-  }, [mergeData, onDataChange, projectId, supabase])
-
-  const moveCard = useCallback((cardId: string, fromCol: KanbanColumnKey, toCol: KanbanColumnKey) => {
-    if (fromCol === toCol) return
-    const source = boardData.columns[fromCol]
-    const target = boardData.columns[toCol]
-    const card = source.find(c => c.id === cardId)
-    if (!card) return
-
-    const next: KanbanBoardData = {
-      columns: {
-        ...boardData.columns,
-        [fromCol]: source.filter(c => c.id !== cardId),
-        [toCol]: [...target, card],
-      },
+    return () => {
+      supabase.removeChannel(channel)
     }
-    void persistBoard(next)
-  }, [boardData.columns, persistBoard])
+  }, [boardId, projectId, mergeData, onDataChange, supabase])
 
-  const addCard = useCallback((col: KanbanColumnKey) => {
+  const handleAddCard = async (column: KanbanColumnKey) => {
     const title = newTitle.trim()
     if (!title) return
     const nextCard: KanbanCardItem = {
@@ -134,204 +122,319 @@ export function KanbanBoard({ boardId, projectId, compact = false, onDataChange,
     const next: KanbanBoardData = {
       columns: {
         ...boardData.columns,
-        [col]: [...boardData.columns[col], nextCard],
+        [column]: [...boardData.columns[column], nextCard],
       },
     }
     void persistBoard(next)
     setNewTitle('')
     setAddingTo(null)
-  }, [boardData.columns, newTitle, persistBoard])
+  }
 
-  const updateSelectedCard = useCallback((patch: Partial<KanbanCardItem>) => {
-    if (!selectedCard) return
-    const { col, card } = selectedCard
-    const nextCard = { ...card, ...patch }
-    setSelectedCard({ col, card: nextCard })
-    const next: KanbanBoardData = {
+  const handleDragStart = (e: React.DragEvent, cardId: string, fromCol: KanbanColumnKey) => {
+    dragRef.current = { cardId, fromCol }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  }
+
+  const handleDrop = async (e: React.DragEvent, toCol: KanbanColumnKey) => {
+    if (!dragRef.current || dragRef.current.fromCol === toCol) return
+
+    const { cardId, fromCol } = dragRef.current
+    const source = boardData.columns[fromCol]
+    const card = source.find(c => c.id === cardId)
+    if (!card) return
+
+    const nextData = {
       columns: {
         ...boardData.columns,
-        [col]: boardData.columns[col].map(c => c.id === card.id ? nextCard : c),
-      },
-    }
-    void persistBoard(next)
-  }, [boardData.columns, persistBoard, selectedCard])
-
-  const deleteSelectedCard = useCallback(() => {
-    if (!selectedCard) return
-    const { col, card } = selectedCard
-    const next: KanbanBoardData = {
-      columns: {
-        ...boardData.columns,
-        [col]: boardData.columns[col].filter(c => c.id !== card.id),
-      },
-    }
-    void persistBoard(next)
-    setSelectedCard(null)
-  }, [boardData.columns, persistBoard, selectedCard])
-
-  useEffect(() => {
-    const title = (focusCardTitle || '').trim().toLowerCase()
-    if (!title) return
-    const columns = boardData.columns
-    const keys: KanbanColumnKey[] = ['idea', 'building', 'testing', 'done']
-    for (const key of keys) {
-      const match = columns[key].find(card => card.title.trim().toLowerCase() === title)
-      if (match) {
-        setSelectedCard({ col: key, card: match })
-        break
+        [fromCol]: boardData.columns[fromCol].filter(c => c.id !== cardId),
+        [toCol]: [...boardData.columns[toCol], card],
       }
     }
-  }, [boardData.columns, focusCardTitle])
+    await persistBoard(nextData)
+    dragRef.current = null
+  }
+
+  const handleUpdateCard = async (updatedCard: KanbanCardItem) => {
+    if (!selectedCard) return
+    const { col } = selectedCard
+    const nextData = {
+      columns: {
+        ...boardData.columns,
+        [col]: boardData.columns[col].map(c => c.id === updatedCard.id ? updatedCard : c)
+      }
+    }
+    await persistBoard(nextData)
+    setSelectedCard(null)
+  }
+
+  const handleDeleteCard = async () => {
+    if (!selectedCard) return
+    const { col, card } = selectedCard
+    const nextData = {
+      columns: {
+        ...boardData.columns,
+        [col]: boardData.columns[col].filter(c => c.id !== card.id)
+      }
+    }
+    await persistBoard(nextData)
+    setSelectedCard(null)
+  }
 
   if (loading) {
-    return <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading board…</div>
+    return <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '12px' }}>Loading board...</div>
   }
 
   return (
     <div style={{ display: 'flex', gap: '0.9rem', overflowX: 'auto', minHeight: compact ? 300 : 420, paddingBottom: '0.5rem' }}>
       {COLUMN_CONFIG.map(({ key, title }) => (
-        <div
+        <Column
           key={key}
-          onDragOver={e => e.preventDefault()}
-          onDrop={() => {
-            const drag = dragRef.current
-            if (!drag) return
-            moveCard(drag.cardId, drag.fromCol, key)
-            dragRef.current = null
-          }}
-          style={{
-            minWidth: compact ? 230 : 260,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '0.75rem',
-          }}
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(e, key)}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-            <span style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>{title}</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{boardData.columns[key].length}</span>
+          <div style={{ padding: '0.75rem', fontWeight: 600, fontSize: '13px', borderBottom: '1px solid var(--border)' }}>
+            {title}
           </div>
-
-          {boardData.columns[key].map(card => (
-            <div
-              key={card.id}
-              draggable
-              onDragStart={() => { dragRef.current = { cardId: card.id, fromCol: key } }}
-              onClick={() => setSelectedCard({ col: key, card })}
-              style={{
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderLeft: `3px solid ${card.color || '#00d4a1'}`,
-                borderRadius: 6,
-                padding: '0.55rem 0.65rem',
-                marginBottom: '0.5rem',
-                cursor: 'grab',
-                opacity: dragRef.current?.cardId === card.id ? 0.5 : 1,
-              }}
-            >
-              <div style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 600 }}>{card.title}</div>
-              {!!card.assignee && <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 2 }}>@{card.assignee}</div>}
-              {!!card.dueDate && <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 2 }}>Due {card.dueDate}</div>}
-            </div>
-          ))}
-
-          {addingTo === key ? (
-            <input
-              autoFocus
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') addCard(key)
-                if (e.key === 'Escape') setAddingTo(null)
-              }}
-              placeholder="Card title"
-              style={{
-                width: '100%',
-                background: 'var(--bg)',
-                border: '1px solid var(--accent)',
-                borderRadius: 4,
-                padding: '0.35rem 0.5rem',
-                color: 'var(--text-primary)',
-                fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 11,
-                outline: 'none',
-              }}
-            />
-          ) : (
-            <button
-              onClick={() => setAddingTo(key)}
-              style={{
-                width: '100%',
-                background: 'none',
-                border: '1px dashed #00d4a1',
-                borderRadius: 5,
-                padding: '0.3rem 0.4rem',
-                color: '#00d4a1',
-                cursor: 'pointer',
-                fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 11,
-              }}
-            >
-              + Add card
-            </button>
-          )}
-        </div>
+          <div style={{ padding: '0.5rem', overflowY: 'auto', flex: 1 }}>
+            {boardData.columns[key].map(card => (
+              <Card
+                key={card.id}
+                {...card}
+                draggable
+                onDragStart={(e) => handleDragStart(e, card.id, key)}
+                onClick={() => setSelectedCard({ col: key, card })}
+                isFocused={focusCardTitle === card.title}
+              />
+            ))}
+            {addingTo === key ? (
+              <div style={{ padding: '0.5rem' }}>
+                <input
+                  type="text"
+                  autoFocus
+                  value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAddCard(key)}
+                  onBlur={() => setAddingTo(null)}
+                  placeholder="New card title..."
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--accent)',
+                    borderRadius: '4px',
+                    color: 'var(--text)',
+                    fontSize: '12px',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingTo(key)}
+                style={{
+                  width: 'calc(100% - 1rem)',
+                  margin: '0.5rem',
+                  padding: '0.35rem',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  textAlign: 'left',
+                }}
+              >
+                + Add card
+              </button>
+            )}
+          </div>
+        </Column>
       ))}
-
       {selectedCard && (
-        <div
-          onClick={() => setSelectedCard(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 210 }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              height: '100%',
-              width: '360px',
-              background: 'var(--bg)',
-              borderLeft: '1px solid var(--border)',
-              padding: '1rem',
-              overflowY: 'auto',
-            }}
-          >
-            <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginBottom: 8 }}>Card details</div>
-            <input value={selectedCard.card.title} onChange={e => updateSelectedCard({ title: e.target.value })} style={inputStyle} placeholder="Title" />
-            <input value={selectedCard.card.assignee || ''} onChange={e => updateSelectedCard({ assignee: e.target.value })} style={inputStyle} placeholder="Assignee" />
-            <input value={selectedCard.card.label || ''} onChange={e => updateSelectedCard({ label: e.target.value })} style={inputStyle} placeholder="Label" />
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              {LABEL_COLORS.map(color => (
-                <button key={color} onClick={() => updateSelectedCard({ color })} style={{ width: 18, height: 18, borderRadius: '50%', background: color, border: selectedCard.card.color === color ? '2px solid #fff' : '1px solid #333', cursor: 'pointer' }} />
-              ))}
-            </div>
-            <input type="date" value={selectedCard.card.dueDate || ''} onChange={e => updateSelectedCard({ dueDate: e.target.value })} style={inputStyle} />
-            <textarea value={selectedCard.card.description || ''} onChange={e => updateSelectedCard({ description: e.target.value })} style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }} placeholder="Description" />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={deleteSelectedCard} style={{ background: 'none', border: '1px solid #f87171', borderRadius: 4, color: '#f87171', cursor: 'pointer', padding: '0.35rem 0.7rem', fontSize: 11 }}>Delete</button>
-              <button onClick={() => setSelectedCard(null)} style={{ background: 'var(--accent)', border: 'none', borderRadius: 4, color: 'var(--status-text)', cursor: 'pointer', padding: '0.35rem 0.7rem', fontSize: 11 }}>Done</button>
-            </div>
-          </div>
-        </div>
+        <CardDetailModal
+          card={selectedCard.card}
+          onClose={() => setSelectedCard(null)}
+          onUpdate={handleUpdateCard}
+          onDelete={handleDeleteCard}
+        />
       )}
+    </div>
+  )
+})
+
+function Column({ title, children, onDragOver, onDrop }: { title: string, children: React.ReactNode, onDragOver: (e: React.DragEvent) => void, onDrop: (e: React.DragEvent) => void }) {
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      style={{
+        width: '220px',
+        flexShrink: 0,
+        background: 'var(--surface)',
+        borderRadius: '8px',
+        border: '1px solid var(--border)',
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: 'calc(100vh - 120px)',
+      }}
+    >
+      <div style={{ padding: '0.75rem', fontWeight: 600, fontSize: '13px', borderBottom: '1px solid var(--border)' }}>
+        {title}
+      </div>
+      <div style={{ padding: '0.5rem', overflowY: 'auto', flex: 1 }}>
+        {children}
+      </div>
     </div>
   )
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  color: 'var(--text-primary)',
-  fontFamily: 'JetBrains Mono, monospace',
-  fontSize: 12,
-  outline: 'none',
-  padding: '0.45rem 0.55rem',
-  marginBottom: 10,
+function Card({ title, assignee, label, color, isFocused, ...props }: { title: string, assignee?: string, label?: string, color?: string, isFocused?: boolean } & React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      draggable
+      {...props}
+      style={{
+        padding: '0.75rem',
+        background: 'var(--bg)',
+        border: '1px solid var(--border)',
+        borderRadius: '6px',
+        marginBottom: '0.5rem',
+        cursor: 'pointer',
+        boxShadow: isFocused ? '0 0 0 2px var(--accent)' : 'none',
+        transition: 'box-shadow 0.2s',
+      }}
+    >
+      <div style={{ fontSize: '13px', fontWeight: 500, marginBottom: '0.5rem' }}>{title}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {label && (
+          <span style={{
+            padding: '2px 6px',
+            background: color || LABEL_COLORS[0],
+            color: '#fff',
+            borderRadius: '4px',
+            fontSize: '10px',
+            fontWeight: 500,
+          }}>
+            {label}
+          </span>
+        )}
+        {assignee && (
+          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#ccc', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600 }}>
+            {assignee.slice(0, 2).toUpperCase()}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
-export function defaultBoardData(): KanbanBoardData {
-  return JSON.parse(JSON.stringify(DEFAULT_BOARD)) as KanbanBoardData
+function CardDetailModal({ card, onClose, onUpdate, onDelete }: { card: KanbanCardItem, onClose: () => void, onUpdate: (card: KanbanCardItem) => void, onDelete: () => void }) {
+  const [editedCard, setEditedCard] = useState(card)
+
+  const handleSave = () => {
+    onUpdate(editedCard)
+  }
+
+  return (
+    <>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000 }} onClick={onClose} />
+      <div style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '360px',
+        height: 'auto',
+        background: 'var(--bg)',
+        border: '1px solid var(--border)',
+        borderRadius: '8px',
+        padding: '1rem',
+        overflowY: 'auto',
+        zIndex: 1001,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0, fontSize: '18px' }}>Edit Card</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-muted)' }}>&times;</button>
+        </div>
+
+        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-muted)' }}>Title</label>
+        <input
+          type="text"
+          value={editedCard.title}
+          onChange={e => setEditedCard({ ...editedCard, title: e.target.value })}
+          style={{ width: '100%', padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', fontSize: '14px', marginBottom: '1rem' }}
+        />
+
+        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-muted)' }}>Description</label>
+        <textarea
+          value={editedCard.description || ''}
+          onChange={e => setEditedCard({ ...editedCard, description: e.target.value })}
+          style={{ width: '100%', minHeight: '80px', padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', fontSize: '14px', marginBottom: '1rem', fontFamily: 'inherit' }}
+        />
+
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-muted)' }}>Assignee</label>
+            <input
+              type="text"
+              value={editedCard.assignee || ''}
+              onChange={e => setEditedCard({ ...editedCard, assignee: e.target.value })}
+              style={{ width: '100%', padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', fontSize: '14px' }}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-muted)' }}>Due Date</label>
+            <input
+              type="date"
+              value={editedCard.dueDate || ''}
+              onChange={e => setEditedCard({ ...editedCard, dueDate: e.target.value })}
+              style={{ width: '100%', padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', fontSize: '14px' }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-muted)' }}>Label</label>
+            <input
+              type="text"
+              value={editedCard.label || ''}
+              onChange={e => setEditedCard({ ...editedCard, label: e.target.value })}
+              style={{ width: '100%', padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', fontSize: '14px' }}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-muted)' }}>Color</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {LABEL_COLORS.map(color => (
+                <button
+                  key={color}
+                  onClick={() => setEditedCard({ ...editedCard, color })}
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    background: color,
+                    border: editedCard.color === color ? '2px solid var(--accent)' : '2px solid transparent',
+                    cursor: 'pointer',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <button onClick={onDelete} style={{ padding: '0.5rem 1rem', background: 'var(--red-solid)', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>Delete</button>
+          <div>
+            <button onClick={onClose} style={{ marginRight: '0.5rem', padding: '0.5rem 1rem', background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={handleSave} style={{ padding: '0.5rem 1rem', background: 'var(--accent)', border: 'none', borderRadius: '4px', color: 'var(--status-text)', cursor: 'pointer' }}>Save</button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
 }

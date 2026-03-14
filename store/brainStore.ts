@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware'
 export interface BrainFile {
   path: string
   purpose: string
+  calls: string[]
   calledBy: string[]
 }
 
@@ -31,6 +32,11 @@ export const useBrainStore = create<BrainState>()(
     }),
     {
       name: 'helix-brain-store',
+      partialize: (state) => ({
+        fileMap: state.fileMap,
+        summary: state.summary,
+        lastAnalysed: state.lastAnalysed,
+      }),
     }
   )
 )

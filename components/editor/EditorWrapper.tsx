@@ -1,12 +1,14 @@
 'use client'
 // components/editor/EditorWrapper.tsx
+import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Editor } from './Editor'
-import { BrainPanel } from './BrainPanel'
-import { EmojiReactions } from './EmojiReactions'
-import { DiagramModal } from './DiagramModal'
 import { SelectionCommentButton, ThreadSidebar, useCreateThread } from './CommentMark'
 import type { User } from '@/types'
+
+const BrainPanel = dynamic(() => import('./BrainPanel').then((mod) => mod.BrainPanel), { ssr: false })
+const DiagramModal = dynamic(() => import('./DiagramModal').then((mod) => mod.DiagramModal), { ssr: false })
+const EmojiReactions = dynamic(() => import('./EmojiReactions').then((mod) => mod.EmojiReactions), { ssr: false })
 
 interface EditorWrapperProps {
   documentId: string

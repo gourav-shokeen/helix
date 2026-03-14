@@ -4,7 +4,8 @@ import { useEffect } from 'react'
 import { useThemeStore } from '@/store/themeStore'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { theme, toggleTheme } = useThemeStore()
+  const theme = useThemeStore(state => state.theme)
+  const toggleTheme = useThemeStore(state => state.toggleTheme)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)

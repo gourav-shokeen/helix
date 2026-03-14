@@ -75,7 +75,10 @@ function TiptapEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({}),
+      StarterKit.configure({
+        codeBlock: false,
+        history: false,
+      }),
       Collaboration.configure({ document: ydoc }),
       Placeholder.configure({
         placeholder: 'Start writing… type / for commands',

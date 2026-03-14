@@ -22,7 +22,7 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ onClose, docId, docTitle }: CommandPaletteProps) {
   const { user } = useAuthStore()
-  const { toggleTheme } = useThemeStore()
+  const toggleTheme = useThemeStore(state => state.toggleTheme)
   const { toggle: toggleFocus } = useFocusStore()
   const router = useRouter()
   const [query, setQuery] = useState('')

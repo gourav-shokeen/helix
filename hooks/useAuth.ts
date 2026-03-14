@@ -25,7 +25,7 @@ export function useAuth() {
                 setUser(profile)
                 // Ensure a public.users row exists — the trigger may have missed if the
                 // schema was applied after this account was first created.
-                await supabase.from('users').upsert(
+                await supabase.from('profiles').upsert(
                     { id: profile.id, email: profile.email, name: profile.name, avatar_url: profile.avatar_url ?? null },
                     { onConflict: 'id' }
                 )

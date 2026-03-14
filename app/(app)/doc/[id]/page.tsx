@@ -12,12 +12,39 @@ import { downloadFile } from '@/lib/utils'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { StatusBar } from '@/components/layout/StatusBar'
-import { RightPanel } from '@/components/layout/RightPanel'
+// import { RightPanel } from '@/components/layout/RightPanel'
 import { CommandPalette } from '@/components/ui/CommandPalette'
 import { ShareModal } from '@/components/ui/ShareModal'
 import { GitHubSettingsModal } from '@/components/ui/GitHubSettingsModal'
-import { EditorWrapper } from '@/components/editor/EditorWrapper'
+// import { EditorWrapper } from '@/components/editor/EditorWrapper'
 import type { Document, KanbanColumn, KanbanCard } from '@/types'
+
+import dynamic from 'next/dynamic'
+
+const EditorWrapper = dynamic(
+  () => import('@/components/editor/EditorWrapper').then(m => ({ default: m.EditorWrapper })),
+  {
+    ssr: false,
+    loading: () => (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: 'var(--text-muted)',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 12
+      }}>
+        loading editor...
+      </div>
+    )
+  }
+)
+
+const RightPanel = dynamic(
+  () => import('@/components/layout/RightPanel').then(m => ({ default: m.RightPanel })),
+  { ssr: false }
+)
 
 export default function DocPage() {
   const { id } = useParams<{ id: string }>()

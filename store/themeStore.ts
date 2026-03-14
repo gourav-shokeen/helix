@@ -16,6 +16,9 @@ export const useThemeStore = create<ThemeState>()(
             toggleTheme: () => set({ theme: get().theme === 'dark' ? 'light' : 'dark' }),
             setTheme: (theme) => set({ theme }),
         }),
-        { name: 'helix-theme' }
+        {
+            name: 'helix-theme',
+            partialize: (state) => ({ theme: state.theme }),
+        }
     )
 )

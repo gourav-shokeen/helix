@@ -3,6 +3,7 @@ import { Node, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getMermaidConfig, fixSvgColors, fixSvgString } from '@/lib/mermaidTheme'
+import React from 'react'
 
 function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
   const [svg, setSvg] = useState('')
@@ -108,125 +109,147 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
     return () => cancelAnimationFrame(raf)
   }, [svg, fitToView, applyTransform])
 
-  useEffect(() => { fitToView(0) }, [fitToView])
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      hasUserInteracted.current = false
-      renderDiagram(dsl)
-    })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-    return () => observer.disconnect()
-  }, [dsl, renderDiagram])
-
-  useEffect(() => {
-    const wrapper = wrapperRef.current
-    if (!wrapper) return
-    const onPointerDown = (e: PointerEvent) => {
-      if ((e.target as HTMLElement).closest('button')) return
-      e.preventDefault(); e.stopPropagation()
-      hasUserInteracted.current = true
-      ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
-      isPanning.current = true
-      panStart.current = { x: e.clientX - panOffset.current.x, y: e.clientY - panOffset.current.y }
-      
-    }
-    const onPointerMove = (e: PointerEvent) => {
-      if (!isPanning.current) return
-      e.preventDefault()
-      panOffset.current = { x: e.clientX - panStart.current.x, y: e.clientY - panStart.current.y }
-      applyTransform(scaleRef.current)
-    }
-    const onPointerUp = (e: PointerEvent) => {
-      if (!isPanning.current) return
-      isPanning.current = false
-      ;(e.currentTarget as Element).releasePointerCapture(e.pointerId)
-    }
-    wrapper.addEventListener('pointerdown', onPointerDown)
-    wrapper.addEventListener('pointermove', onPointerMove)
-    wrapper.addEventListener('pointerup', onPointerUp)
-    wrapper.addEventListener('pointercancel', onPointerUp)
-    return () => {
-      wrapper.removeEventListener('pointerdown', onPointerDown)
-      wrapper.removeEventListener('pointermove', onPointerMove)
-      wrapper.removeEventListener('pointerup', onPointerUp)
-      wrapper.removeEventListener('pointercancel', onPointerUp)
-    }
-  }, [applyTransform])
-
-  const zoomIn = useCallback((e?: React.MouseEvent) => {
+  const handleWheel = useCallback((e: React.WheelEvent) => {
     e?.stopPropagation(); e?.preventDefault()
     hasUserInteracted.current = true
-    const next = Math.min(3, scaleRef.current + 0.2)
-    scaleRef.current = next; setScale(() => next); applyTransform(next)
+    const delta = e.deltaY < 0 ? 0.2 : -0.2
+    const newScale = Math.max(0.1, Math.min(5, scaleRef.current - delta))
+    setScale(newScale)
+    scaleRef.current = newScale
+    applyTransform(newScale)
   }, [applyTransform])
 
-  const zoomOut = useCallback((e?: React.MouseEvent) => {
-    e?.stopPropagation(); e?.preventDefault()
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
     hasUserInteracted.current = true
-    const next = Math.max(0.3, scaleRef.current - 0.2)
-    scaleRef.current = next; setScale(() => next); applyTransform(next)
+    isPanning.current = true
+    panStart.current = { x: e.clientX, y: e.clientY }
+    wrapperRef.current?.classList.add('is-panning')
+  }, [])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isPanning.current) return
+    const dx = e.clientX - panStart.current.x
+    const dy = e.clientY - panStart.current.y
+    panOffset.current.x += dx
+    panOffset.current.y += dy
+    panStart.current = { x: e.clientX, y: e.clientY }
+    applyTransform(scaleRef.current)
   }, [applyTransform])
 
-  const copyDsl = useCallback(() => navigator.clipboard.writeText(dsl), [dsl])
-  const openEditModal = useCallback(() => {
+  const handleMouseUp = useCallback(() => {
+    isPanning.current = false
+    wrapperRef.current?.classList.remove('is-panning')
+  }, [])
+
+  const handleDoubleClick = useCallback(() => {
     window.dispatchEvent(new CustomEvent('helix:diagram:edit', { detail: { id: nodeId, dsl } }))
-  }, [dsl, nodeId])
+  }, [nodeId, dsl])
 
   return (
     <NodeViewWrapper>
       <div className="mermaid-block" data-diagram-id={nodeId}
-        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-        style={{ position: 'relative' }}>
-        {selected && (
-          <div style={{ position: 'absolute', top: -34, left: 0, background: 'var(--surface-hover)', border: '1px solid var(--accent)', borderRadius: 4, display: 'flex', gap: 4, padding: 3, zIndex: 3 }}>
-            <button onClick={openEditModal} style={toolbarBtnStyle}>Edit</button>
-            <button onClick={copyDsl} style={toolbarBtnStyle}>Copy DSL</button>
-            <button onClick={() => deleteNode()} style={{ ...toolbarBtnStyle, color: '#f87171', borderColor: '#f87171' }}>Delete</button>
-          </div>
-        )}
-        <div className="mermaid-block__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>◈ diagram</span>
-          {(hovered || selected) && (
-            <button onClick={openEditModal} style={{ background: 'none', border: '1px solid var(--accent)', borderRadius: 4, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, padding: '2px 8px' }}>Edit</button>
-          )}
-        </div>
-        <div className="mermaid-block__content" style={{ background: 'var(--surface)', overflow: 'hidden', minHeight: 220, position: 'relative' }}>
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => { setHovered(false); handleMouseUp() }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
+        className={selected ? 'is-selected' : ''}
+        style={{
+          border: '1px solid var(--border)',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          position: 'relative',
+          background: 'var(--surface)',
+          height: '400px',
+          userSelect: 'none',
+        }}
+      >
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
           {error ? (
-            <div style={{ color: '#f87171', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', padding: '1rem' }}>⚠ {error}</div>
-          ) : svg ? (
-            <>
-              <div ref={wrapperRef} style={{ width: '100%', minHeight: 220, overflow: 'hidden', cursor: 'grab', userSelect: 'none', touchAction: 'none' }}>
-                <div ref={containerRef} dangerouslySetInnerHTML={{ __html: svg }}
-                  style={{ display: 'inline-block', minWidth: 800, padding: '1rem', transformOrigin: 'top left', willChange: 'transform' }} />
-              </div>
-              <button onClick={resetView} title="Reset view" style={{ position: 'absolute', bottom: 8, right: 8, background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 14, padding: '3px 8px', zIndex: 5, lineHeight: 1 }}>↺</button>
-            </>
+            <div style={{ padding: '1rem', color: 'var(--red)', fontSize: '12px', whiteSpace: 'pre-wrap' }}>{error}</div>
           ) : (
-            <div style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', padding: '1rem' }}>Rendering diagram…</div>
+            <div dangerouslySetInnerHTML={{ __html: svg }} style={{ cursor: 'grab' }} />
           )}
         </div>
+        {(hovered || selected) && (
+          <>
+            <button
+              onClick={deleteNode}
+              contentEditable={false}
+              style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                width: '24px',
+                height: '24px',
+                background: 'var(--surface-raised)',
+                border: '1px solid var(--border)',
+                borderRadius: '50%',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+                lineHeight: 1,
+                zIndex: 10,
+              }}
+            >
+              &times;
+            </button>
+            <button
+              onClick={resetView}
+              contentEditable={false}
+              style={{
+                position: 'absolute',
+                bottom: '8px',
+                right: '8px',
+                padding: '4px 8px',
+                background: 'var(--surface-raised)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: '10px',
+                zIndex: 10,
+              }}
+            >
+              Reset View
+            </button>
+          </>
+        )}
       </div>
     </NodeViewWrapper>
   )
 }
 
-const toolbarBtnStyle: React.CSSProperties = { background: 'none', border: '1px solid var(--accent)', borderRadius: 3, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, padding: '2px 7px' }
-const zoomBtnStyle: React.CSSProperties = { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 14, padding: '0 4px', lineHeight: 1 }
+const MemoizedDiagramNodeView = React.memo(DiagramNodeView)
 
 export const DiagramNodeExtension = Node.create({
-  name: 'diagramNode',
+  name: 'diagram',
   group: 'block',
   atom: true,
+  draggable: true,
+
   addAttributes() {
     return {
-      dsl: { default: 'graph TD\n  A[Start] --> B[End]' },
       id: { default: null },
+      dsl: { default: '' },
     }
   },
-  parseHTML() { return [{ tag: 'div[data-diagram-id]' }] },
-  renderHTML({ HTMLAttributes }) {
-    return ['div', { 'data-diagram-id': HTMLAttributes.id, 'data-dsl': HTMLAttributes.dsl }]
+
+  parseHTML() {
+    return [{ tag: 'div[data-diagram-id]' }, { tag: 'div[data-type="diagram"]' }]
   },
-  addNodeView() { return ReactNodeViewRenderer(DiagramNodeView) },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['div', { 'data-type': 'diagram', ...HTMLAttributes }]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(MemoizedDiagramNodeView)
+  },
 })

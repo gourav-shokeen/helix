@@ -1,0 +1,522 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=DM+Sans:ital,opsz,wght@0,9..40,100..900;1,9..40,100..900&display=swap');
+/* PROMPT 4: highlight.js theme import */
+@import 'highlight.js/styles/atom-one-dark.css';
+
+/* ─── Design Tokens ─── */
+:root {
+  --bg: #0e0e0f;
+  --surface: #141416;
+  --surface-hover: #1c1c20;
+  --border: #242428;
+  --border-light: #2e2e34;
+  --accent: #00d4a1;
+  --accent-dim: rgba(0, 212, 161, 0.08);
+  --accent-mid: rgba(0, 212, 161, 0.15);
+  --orange: #ff8c42;
+  --blue: #4fa3e0;
+  --purple: #a78bfa;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --text-primary: #e8e8ec;
+  --text-secondary: #9090a8;
+  --text-muted: #55556a;
+  --status-bg: #00d4a1;
+  --status-text: #001a13;
+  --code-bg: #090909;
+  --scrollbar: #2e2e34;
+}
+
+[data-theme='light'] {
+  --bg: #f5f5f0;
+  --surface: #ededea;
+  --surface-hover: #e5e5e0;
+  --border: #d0d0cc;
+  --border-light: #c0c0bc;
+  --accent: #00a67d;
+  --accent-dim: rgba(0, 166, 125, 0.08);
+  --accent-mid: rgba(0, 166, 125, 0.15);
+  --orange: #e07030;
+  --blue: #2a7fc0;
+  --purple: #7c5fd0;
+  --red: #d04040;
+  --yellow: #c09000;
+  --text-primary: #1a1a1a;
+  --text-secondary: #505060;
+  --text-muted: #808090;
+  --status-bg: #00a67d;
+  --status-text: #001a13;
+  --code-bg: #f0f0ec;
+  --scrollbar: #c0c0bc;
+}
+
+/* ─── Reset & Base ─── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: 'JetBrains Mono', monospace;
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* ─── Custom Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-light);
+}
+
+/* ─── Animations ─── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@keyframes floatUp {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-40px) scale(1.4); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.helix-fade-in {
+  animation: fadeIn 0.15s ease forwards;
+}
+
+.helix-hover {
+  transition: all 0.15s ease;
+}
+
+.helix-blink {
+  animation: blink 1.2s step-end infinite;
+}
+
+.emoji-float {
+  animation: floatUp 1.2s ease-out forwards;
+  pointer-events: none;
+  position: fixed;
+  z-index: 9999;
+  font-size: 1.5rem;
+}
+
+/* ─── Skeleton shimmer ─── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--surface-hover) 50%,
+    var(--surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* ─── Tiptap Editor ─── */
+.tiptap-editor {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 44px 60px;
+  min-height: 100%;
+  outline: none;
+}
+
+.tiptap-editor p {
+  margin-bottom: 0.75em;
+}
+
+.tiptap-editor h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5em;
+  margin-top: 1.2em;
+}
+
+.tiptap-editor h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.4em;
+  margin-top: 1em;
+}
+
+.tiptap-editor h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.3em;
+  margin-top: 0.8em;
+}
+
+.tiptap-editor code {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+  font-size: 0.9em;
+  color: var(--accent);
+}
+
+.tiptap-editor pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1em;
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+
+.tiptap-editor pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text-primary);
+}
+
+.tiptap-editor blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1em;
+  color: var(--text-secondary);
+  margin: 0.75em 0;
+}
+
+.tiptap-editor ul,
+.tiptap-editor ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+.tiptap-editor li {
+  margin-bottom: 0.25em;
+}
+
+/* Task list */
+.tiptap-editor ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiptap-editor ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.tiptap-editor ul[data-type='taskList'] li input[type='checkbox'] {
+  accent-color: var(--accent);
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+/* Table */
+.tiptap-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0;
+}
+
+.tiptap-editor th,
+.tiptap-editor td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.75em;
+  text-align: left;
+}
+
+.tiptap-editor th {
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Collaboration cursor */
+.collaboration-cursor__caret {
+  border-left: 1px solid;
+  border-right: 1px solid;
+  margin-left: -1px;
+  margin-right: -1px;
+  position: relative;
+  word-break: normal;
+  pointer-events: none;
+}
+
+.collaboration-cursor__label {
+  border-radius: 3px 3px 3px 0;
+  color: #fff;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 600;
+  left: -1px;
+  line-height: normal;
+  padding: 0.1rem 0.3rem;
+  position: absolute;
+  top: -1.4em;
+  user-select: none;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+
+/* Placeholder */
+.tiptap-editor p.is-editor-empty:first-child::before {
+  color: var(--text-muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ─── Mermaid Block ─── */
+.mermaid-block {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 0.75em 0;
+  background: var(--surface);
+  position: relative; /* For NodeView toolbar positioning */
+}
+
+.mermaid-block__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4em 0.75em;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.mermaid-block__content {
+  padding: 1em;
+}
+
+.mermaid-block textarea {
+  width: 100%;
+  background: var(--code-bg);
+  border: none;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+  outline: none;
+  min-height: 80px;
+  padding: 0.5em;
+}
+
+/* ─── Kanban Block ─── */
+.kanban-block {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 0.75em 0;
+}
+
+.kanban-columns {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  min-height: 200px;
+}
+
+.kanban-column {
+  min-width: 200px;
+  flex: 1;
+  border-right: 1px solid var(--border);
+  padding: 0.75em;
+  background: var(--surface);
+}
+
+.kanban-column:last-child {
+  border-right: none;
+}
+
+.kanban-column__title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kanban-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5em 0.75em;
+  margin-bottom: 0.4em;
+  font-size: 0.85rem;
+  cursor: grab;
+  transition: box-shadow 0.15s ease;
+}
+
+.kanban-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-color: var(--border-light);
+}
+
+/* ─── Enhanced Code Block (Feature 3) ─── */
+/* PROMPT 4: CSS-only line numbers */
+.tiptap pre code {
+  counter-reset: line;
+  display: grid;
+}
+.tiptap pre code .hljs-line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 2.5rem;
+  color: var(--text-muted);
+  user-select: none;
+  text-align: right;
+  margin-right: 1.5rem;
+}
+
+.tiptap pre code .hljs-line {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Style: pre bg #0a0a0f, border-left 3px #00d4a1, toolbar bg #1a1a2e, output panel bg #000 color #00d4a1 */
+.code-block-content pre {
+  background: var(--code-bg);
+  border-left: 3px solid var(--accent);
+  padding: 1em;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.code-block-content pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code-block-content pre .hljs-ln-numbers {
+  user-select: none;
+  color: var(--text-muted);
+  padding-right: 1.2em;
+  text-align: right;
+  min-width: 2em;
+  display: inline-block;
+}
+
+/* Thread comment highlight mark */
+.helix-comment-mark {
+  background: rgba(0, 212, 161, 0.25);
+  border-bottom: 2px solid var(--accent);
+  cursor: pointer;
+}
+
+/* Thread sidebar */
+.thread-sidebar {
+  width: 280px;
+  border-left: 1px solid var(--border);
+  background: #12121f;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.25s ease;
+  flex-shrink: 0;
+}
+
+.thread-card {
+  background: #1a1a2e;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.6rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.thread-card:hover,
+.thread-card--active {
+  border-color: var(--accent);
+}
+
+.thread-card--resolved {
+  opacity: 0.5;
+}
+
+/* ─── Focus Mode ─── */
+.focus-active .sidebar,
+.focus-active .right-panel,
+.focus-active .thread-panel {
+  display: none !important;
+}
+
+.focus-active .collaboration-cursor__label {
+  opacity: 0.1 !important;
+}
+
+/* ─── Print (PDF export) ─── */
+@media print {
+  .sidebar, .right-panel, .thread-panel,
+  footer, header, nav, .topbar { display: none !important; }
+  .tiptap-editor { max-width: 100%; padding: 20px; }
+  body { background: white; color: #000; }
+}
+
+/* ─── Task List checked items ─── */
+.tiptap-editor li[data-type="taskItem"][data-checked="true"] > div {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.tiptap-editor li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.tiptap-editor li[data-type="taskItem"] > label {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tiptap-editor li[data-type="taskItem"] input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+

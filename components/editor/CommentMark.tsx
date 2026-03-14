@@ -13,7 +13,6 @@ async function getThreads(docId: string) {
     .order('created_at', { ascending: true })
 }
 
-
 // ── Tiptap Mark ───────────────────────────────────────────────
 
 export const CommentMarkExtension = Mark.create({
@@ -54,6 +53,21 @@ interface SelectionToolbarProps {
 export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const [selectedText, setSelectedText] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+
+  // Hide comment button when diagram modal or brain panel is open
+  useEffect(() => {
+    const onOpen = () => setModalOpen(true)
+    const onClose = () => setModalOpen(false)
+    window.addEventListener('helix:diagram:edit', onOpen)
+    window.addEventListener('helix:brain:open', onOpen)
+    window.addEventListener('helix:modal:close', onClose)
+    return () => {
+      window.removeEventListener('helix:diagram:edit', onOpen)
+      window.removeEventListener('helix:brain:open', onOpen)
+      window.removeEventListener('helix:modal:close', onClose)
+    }
+  }, [])
 
   useEffect(() => {
     const handler = () => {
@@ -72,7 +86,7 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
     return () => document.removeEventListener('selectionchange', handler)
   }, [])
 
-  if (!pos) return null
+  if (!pos || modalOpen) return null
 
   return (
     <div
@@ -81,7 +95,7 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
         position: 'fixed',
         top: pos.top,
         left: pos.left,
-        zIndex: 500,
+        zIndex: 300,
         background: 'var(--surface)',
         border: '1px solid var(--border)',
         borderRadius: '5px',
@@ -115,12 +129,12 @@ export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved }: Th
   const supabase = useMemo(() => createClient(), [])
 
   const loadThreads = useCallback(async () => {
-    if (!docId) return // Add null check
+    if (!docId) return
     const { data } = await getThreads(docId)
     if (data) setThreads(data as Thread[])
   }, [docId])
 
-  useEffect(() => { loadThreads() }, [loadThreads]) // Re-fetch when docId changes
+  useEffect(() => { loadThreads() }, [loadThreads])
 
   useEffect(() => {
     const refreshHandler = () => loadThreads()
@@ -147,9 +161,7 @@ export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved }: Th
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ thread_id: threadId, body })
       })
-      
       const result = await response.json()
-      
       if (response.ok && result.comment) {
         await loadThreads()
         setReplyBody((prev) => ({ ...prev, [threadId]: '' }))
@@ -166,7 +178,6 @@ export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved }: Th
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ thread_id: threadId, resolved: true })
       })
-      
       if (response.ok) {
         await loadThreads()
         onThreadResolved?.(threadId)
@@ -265,14 +276,11 @@ export function useCreateThread(docId: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ doc_id: docId, anchor_text: anchorText })
       })
-      
       const result = await response.json()
-      
       if (!response.ok) {
         console.error('Thread creation failed:', result.error)
         return null
       }
-      
       return result.thread?.id ?? null
     } catch (err) {
       console.error('Thread creation error:', err)

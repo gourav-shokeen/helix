@@ -83,7 +83,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
   const removeCommentMarkRef = useRef<((threadId: string) => void) | null>(null)
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}>
         <Editor
           documentId={documentId}

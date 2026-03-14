@@ -201,7 +201,7 @@ export function KanbanBoard({ boardId, projectId, compact = false, onDataChange,
           }}
           style={{
             minWidth: compact ? 230 : 260,
-            background: '#1a1a2e',
+            background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 8,
             padding: '0.75rem',
@@ -219,7 +219,7 @@ export function KanbanBoard({ boardId, projectId, compact = false, onDataChange,
               onDragStart={() => { dragRef.current = { cardId: card.id, fromCol: key } }}
               onClick={() => setSelectedCard({ col: key, card })}
               style={{
-                background: '#0d0d1a',
+                background: 'var(--bg)',
                 border: '1px solid var(--border)',
                 borderLeft: `3px solid ${card.color || '#00d4a1'}`,
                 borderRadius: 6,
@@ -291,7 +291,7 @@ export function KanbanBoard({ boardId, projectId, compact = false, onDataChange,
               top: 0,
               height: '100%',
               width: '360px',
-              background: '#0d0d1a',
+              background: 'var(--bg)',
               borderLeft: '1px solid var(--border)',
               padding: '1rem',
               overflowY: 'auto',
@@ -321,7 +321,7 @@ export function KanbanBoard({ boardId, projectId, compact = false, onDataChange,
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#12121f',
+  background: 'var(--surface)',
   border: '1px solid var(--border)',
   borderRadius: 4,
   color: 'var(--text-primary)',

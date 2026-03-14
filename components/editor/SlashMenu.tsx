@@ -16,7 +16,6 @@ interface SlashMenuProps {
 
 interface Position { top: number; left: number }
 
-// Simple fuzzy: every char in query appears in order inside target
 function fuzzyMatch(query: string, target: string): boolean {
   if (!query) return true
   const q = query.toLowerCase()
@@ -49,7 +48,6 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
   const execute = useCallback(
     async (cmd: (typeof SLASH_COMMANDS)[0]) => {
       hide()
-      // Delete the /query text
       const { from } = editor.state.selection
       const text = editor.state.doc.textBetween(Math.max(0, from - 20), from)
       const slashIdx = text.lastIndexOf('/')
@@ -71,21 +69,20 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
         case 'diagram':
           onOpenDiagram?.()
           break
-        case 'kanban':
-          {
-            const { data: existing } = await getBoard(projectId)
-            let boardId = existing?.id as string | undefined
-            if (!boardId) {
-              const { data: created } = await createBoard(projectId, defaultBoardData())
-              boardId = created?.id as string | undefined
-            }
-            if (!boardId) break
-            editor.chain().focus().insertContent({
-              type: 'kanbanBlock',
-              attrs: { boardId },
-            }).run()
+        case 'kanban': {
+          const { data: existing } = await getBoard(projectId)
+          let boardId = existing?.id as string | undefined
+          if (!boardId) {
+            const { data: created } = await createBoard(projectId, defaultBoardData())
+            boardId = created?.id as string | undefined
           }
+          if (!boardId) break
+          editor.chain().focus().insertContent({
+            type: 'kanbanBlock',
+            attrs: { boardId },
+          }).run()
           break
+        }
         case 'standup': {
           const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           const html = [
@@ -110,7 +107,6 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
 
   useEffect(() => {
     const handler = () => {
-      // Disable slash menu in focus mode
       if (useFocusStore.getState().isFocused) { setVisible(false); return }
       const { from } = editor.state.selection
       const text = editor.state.doc.textBetween(Math.max(0, from - 20), from)
@@ -118,15 +114,16 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
       if (slashIdx !== -1 && !text.slice(slashIdx).includes(' ')) {
         const q = text.slice(slashIdx + 1)
         setQuery(q)
-
-        if (timeoutRef.current) clearTimeout(timeoutRef.current)
-        timeoutRef.current = setTimeout(() => {
-          try {
-            const coords = editor.view.coordsAtPos(from)
-            setPos({ top: coords.bottom + 8, left: coords.left })
-            setVisible(true)
-          } catch { /* ignore */ }
-        }, 80) // < 100ms
+        try {
+          const coords = editor.view.coordsAtPos(from)
+          const { innerHeight } = window
+          const menuHeight = Math.min(filtered.length * 48, 300)
+          const top = coords.bottom + menuHeight > innerHeight
+            ? coords.top - menuHeight - 8
+            : coords.bottom + 8
+          setPos({ top, left: coords.left })
+          setVisible(true)
+        } catch (_e) { /* ignore */ }
       } else {
         setVisible(false)
       }
@@ -134,9 +131,8 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
 
     editor.on('update', handler)
     return () => { editor.off('update', handler) }
-  }, [editor])
+  }, [editor, filtered.length])
 
-  // Keyboard nav: arrows + Enter + Esc
   useEffect(() => {
     if (!visible) return
     const handler = (e: KeyboardEvent) => {
@@ -149,7 +145,6 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
     return () => window.removeEventListener('keydown', handler, true)
   }, [visible, filtered, active, execute, hide])
 
-  // Close on click outside
   useEffect(() => {
     if (!visible) return
     const handler = (e: MouseEvent) => {
@@ -159,7 +154,6 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
     return () => document.removeEventListener('mousedown', handler)
   }, [visible, hide])
 
-  // Reset active index when filtered list changes
   useEffect(() => { setActive(0) }, [query])
 
   if (!visible || filtered.length === 0) return null
@@ -178,8 +172,7 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
         borderRadius: '6px',
         width: '300px',
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        overflow: 'hidden',
-        maxHeight: `${8 * 48}px`,
+        maxHeight: '300px',
         overflowY: 'auto',
       }}
     >
@@ -210,4 +203,3 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
     </div>
   )
 }
-

@@ -8,7 +8,51 @@ import { common, createLowlight } from 'lowlight'
 const lowlight = createLowlight(common)
 
 const LANGUAGES = ['javascript', 'typescript', 'python', 'rust', 'go', 'sql', 'bash', 'json', 'html', 'css']
-const RUNNABLE = ['javascript', 'typescript']
+const RUNNABLE = ['javascript', 'typescript', 'python']
+
+// Pyodide state
+let pyodide: any | null = null
+let pyodideLoading: Promise<any> | null = null
+
+async function initializePyodide() {
+  if (pyodide) return pyodide
+  if (pyodideLoading) return pyodideLoading
+
+  // @ts-ignore
+  const script = globalThis.document.createElement('script')
+  script.src = 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js'
+  // @ts-ignore
+  globalThis.document.head.appendChild(script)
+
+  pyodideLoading = new Promise<void>((resolve, reject) => {
+    script.onload = async () => {
+      // @ts-ignore
+      const loadedPyodide = await globalThis.loadPyodide()
+      pyodide = loadedPyodide
+      // Override stdout to capture prints
+      pyodide.runPython(`
+        import sys
+        import io
+        sys.stdout = io.StringIO()
+      `)
+      resolve(pyodide)
+    }
+    script.onerror = reject
+  })
+  return pyodideLoading
+}
+
+async function runPython(code: string): Promise<string> {
+  try {
+    const py = await initializePyodide()
+    py.runPython(code)
+    const stdout = py.runPython('sys.stdout.getvalue()')
+    py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)') // Clear buffer
+    return stdout || '(no output)'
+  } catch (e: any) {
+    return `[Error] ${e.message}`
+  }
+}
 
 function createRunnerHtml(code: string, language: string) {
   const safeCode = JSON.stringify(code)
@@ -81,8 +125,20 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     updateAttributes({ language: lang })
   }
 
-  const handleRun = () => {
-    if (!RUNNABLE.includes(language)) return
+  const handleRun = async () => {
+    if (!RUNNABLE.includes(language)) {
+      setOutput(`Execution not supported for ${language}`)
+      return
+    }
+
+    if (language === 'python') {
+      setOutput('Initializing Python environment...')
+      const result = await runPython(code)
+      setOutput(result)
+      return
+    }
+
+    // JS/TS execution
     const blob = new Blob([createRunnerHtml(code, language)], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)

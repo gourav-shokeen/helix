@@ -61,7 +61,8 @@ export function DiagramModal({ onInsert, onClose, initialDsl, mode = 'insert' }:
   useEffect(() => {
     const next = initialDsl || TEMPLATES.Flowchart
     setSyntax(next)
-    renderDiagram(next)
+    // HACK: Defer initial render until after modal animation completes
+    setTimeout(() => renderDiagram(next), 100)
   }, [initialDsl, renderDiagram])
 
   const handleChange = (val: string) => {

@@ -4,20 +4,22 @@ import { Node, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-// Mermaid node view component
+const DEFAULT_DSL = 'graph TD\n  A[Start] --> B[End]'
+
 function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeViewProps) {
   const [editing, setEditing] = useState(false)
-  const [syntax, setSyntax] = useState(node.attrs.syntax as string)
+  const [syntax, setSyntax] = useState((node.attrs.syntax as string) || DEFAULT_DSL)
   const [svg, setSvg] = useState('')
   const [error, setError] = useState('')
-  const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2)}`)
+  const mermaidRef = useRef<HTMLDivElement>(null)
 
   const renderMermaid = useCallback(async (code: string) => {
+    if (!code?.trim()) return
     try {
       const mermaid = (await import('mermaid')).default
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mermaid.initialize({ theme: 'dark', themeVariables: { primaryColor: '#00d4a1' } } as any)
-      const { svg: rendered } = await mermaid.render(idRef.current, code)
+      mermaid.initialize({ startOnLoad: false, theme: 'dark', themeVariables: { primaryColor: '#00d4a1' } })
+      const freshId = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const { svg: rendered } = await mermaid.render(freshId, code)
       setSvg(rendered)
       setError('')
     } catch (e) {
@@ -26,7 +28,16 @@ function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeV
     }
   }, [])
 
-  useEffect(() => { renderMermaid(syntax) }, [syntax, renderMermaid])
+  // Render on mount and whenever syntax changes
+  useEffect(() => {
+    renderMermaid(syntax)
+  }, [syntax, renderMermaid])
+
+  // Sync if node attrs change externally (e.g. from DiagramModal update)
+  useEffect(() => {
+    const incoming = (node.attrs.syntax as string) || DEFAULT_DSL
+    setSyntax(incoming)
+  }, [node.attrs.syntax])
 
   const save = () => {
     setEditing(false)
@@ -37,18 +48,10 @@ function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeV
     navigator.clipboard.writeText(syntax)
   }
 
-  const handleEdit = () => {
-    setEditing(true)
-  }
-
-  const handleDelete = () => {
-    deleteNode()
-  }
-
   return (
     <NodeViewWrapper>
       <div className="mermaid-block" contentEditable={false}>
-        {/* NodeView toolbar (shown on selection) */}
+        {/* Toolbar shown on selection */}
         {selected && (
           <div style={{
             position: 'absolute',
@@ -61,50 +64,14 @@ function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeV
             display: 'flex',
             gap: '0.25rem',
             fontSize: '11px',
-            zIndex: 10
+            zIndex: 10,
           }}>
-            <button
-              onClick={handleEdit}
-              style={{ 
-                background: 'none', 
-                border: 'none', 
-                color: '#00d4a1', 
-                cursor: 'pointer',
-                padding: '0.2rem 0.4rem',
-                borderRadius: '2px'
-              }}
-            >
-              Edit
-            </button>
-            <button
-              onClick={copyDSL}
-              style={{ 
-                background: 'none', 
-                border: 'none', 
-                color: '#00d4a1', 
-                cursor: 'pointer',
-                padding: '0.2rem 0.4rem',
-                borderRadius: '2px'
-              }}
-            >
-              Copy DSL
-            </button>
-            <button
-              onClick={handleDelete}
-              style={{ 
-                background: 'none', 
-                border: 'none', 
-                color: '#f87171', 
-                cursor: 'pointer',
-                padding: '0.2rem 0.4rem',
-                borderRadius: '2px'
-              }}
-            >
-              Delete
-            </button>
+            <button onClick={() => setEditing(true)} style={toolbarBtn}>Edit</button>
+            <button onClick={copyDSL} style={toolbarBtn}>Copy DSL</button>
+            <button onClick={() => deleteNode()} style={{ ...toolbarBtn, color: '#f87171' }}>Delete</button>
           </div>
         )}
-        
+
         <div className="mermaid-block__header">
           <span>◎ mermaid diagram</span>
           <button
@@ -114,6 +81,7 @@ function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeV
             {editing ? 'preview' : 'edit syntax'}
           </button>
         </div>
+
         <div className="mermaid-block__content">
           {editing ? (
             <div>
@@ -121,19 +89,42 @@ function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeV
                 value={syntax}
                 onChange={(e) => setSyntax(e.target.value)}
                 rows={6}
-                style={{ width: '100%', background: 'var(--code-bg)', color: 'var(--text-primary)', border: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', resize: 'vertical', outline: 'none', padding: '0.5rem' }}
+                style={{
+                  width: '100%',
+                  background: 'var(--code-bg)',
+                  color: 'var(--text-primary)',
+                  border: 'none',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '12px',
+                  resize: 'vertical',
+                  outline: 'none',
+                  padding: '0.5rem',
+                }}
               />
               <button
                 onClick={save}
-                style={{ marginTop: '0.4rem', background: 'var(--accent)', border: 'none', borderRadius: '3px', padding: '0.3rem 0.75rem', color: 'var(--status-text)', cursor: 'pointer', fontSize: '11px' }}
+                style={{
+                  marginTop: '0.4rem',
+                  background: 'var(--accent)',
+                  border: 'none',
+                  borderRadius: '3px',
+                  padding: '0.3rem 0.75rem',
+                  color: 'var(--status-text)',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                }}
               >
                 Render
               </button>
             </div>
           ) : error ? (
             <div style={{ color: 'var(--red)', fontSize: '12px', padding: '0.5rem' }}>⚠ {error}</div>
-          ) : (
+          ) : svg ? (
             <div dangerouslySetInnerHTML={{ __html: svg }} style={{ overflow: 'auto' }} />
+          ) : (
+            <div style={{ color: 'var(--text-muted)', fontSize: '12px', padding: '0.5rem', fontFamily: 'JetBrains Mono, monospace' }}>
+              Rendering diagram...
+            </div>
           )}
         </div>
       </div>
@@ -141,7 +132,15 @@ function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeV
   )
 }
 
-// Tiptap Node definition
+const toolbarBtn: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: '#00d4a1',
+  cursor: 'pointer',
+  padding: '0.2rem 0.4rem',
+  borderRadius: '2px',
+}
+
 export const MermaidBlockExtension = Node.create({
   name: 'mermaidBlock',
   group: 'block',
@@ -150,7 +149,7 @@ export const MermaidBlockExtension = Node.create({
   addAttributes() {
     return {
       syntax: {
-        default: 'graph TD\n  A[Start] --> B[End]',
+        default: DEFAULT_DSL,
       },
     }
   },

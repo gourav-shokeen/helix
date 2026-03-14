@@ -247,8 +247,8 @@ export function KanbanBoard({ boardId, projectId, compact = false, onDataChange,
               placeholder="Card title"
               style={{
                 width: '100%',
-                background: '#0d0d1a',
-                border: '1px solid #00d4a1',
+                background: 'var(--bg)',
+                border: '1px solid var(--accent)',
                 borderRadius: 4,
                 padding: '0.35rem 0.5rem',
                 color: 'var(--text-primary)',

@@ -25,7 +25,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
   const [docContent, setDocContent] = useState('')
   const insertDiagramRef = useRef<((syntax: string) => void) | null>(null)
   const updateDiagramRef = useRef<((id: string, dsl: string) => void) | null>(null)
-  const [threadsOpen, setThreadsOpen] = useState(true)
+  const [threadsOpen, setThreadsOpen] = useState(false)
 
   // Close thread panel in focus mode
   useEffect(() => {
@@ -75,7 +75,6 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     if (!threadId) return
     applyCommentMarkRef.current?.(threadId)
     window.dispatchEvent(new CustomEvent('helix:threads:refresh'))
-    setThreadsOpen(true)
   }, [createThread])
 
   // Ref to call editor.chain().setMark after threadId is known

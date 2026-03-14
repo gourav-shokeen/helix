@@ -1,6 +1,7 @@
 'use client'
 // components/layout/TopBar.tsx
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/Avatar'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { ProfileDropdown } from '@/components/ui/ProfileDropdown'
@@ -38,6 +39,7 @@ export function TopBar({
   onGitHubSettings,
   showDoc = true,
 }: TopBarProps) {
+  const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(docTitle)
   const [exportOpen, setExportOpen] = useState(false)
@@ -79,6 +81,26 @@ export function TopBar({
       >
         {APP_NAME}
       </span>
+
+      {/* Back button */}
+      <button
+        onClick={() => router.back()}
+        title="Go back"
+        style={{
+          background: 'none',
+          border: '1px solid var(--border)',
+          borderRadius: '4px',
+          padding: '3px 8px',
+          cursor: 'pointer',
+          color: 'var(--text-secondary)',
+          fontSize: '13px',
+          lineHeight: 1,
+          flexShrink: 0,
+          fontFamily: 'JetBrains Mono, monospace',
+        }}
+      >
+        ←
+      </button>
 
       {/* Doc title */}
       {showDoc && (

@@ -13,33 +13,18 @@ export default function JournalPage() {
   const router = useRouter()
   const [entries, setEntries] = useState<Document[]>([])
   const [streak, setStreak] = useState(0)
+  const [todayLoading, setTodayLoading] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
 
-  const init = useCallback(async () => {
-    if (!user) return
-    // Auto-create or navigate to today's journal
-    const { data: today } = await getTodayJournal(user.id)
-    if (today) {
-      router.push(`/doc/${today.id}`)
-      return
-    }
-    const { data: created } = await createDocument(user.id, 'journal', getTodayDateKey())
-    if (created) {
-      router.push(`/doc/${created.id}`)
-      return
-    }
-  }, [user, router])
-
+  // Load the entry list — no auto-redirect here
   useEffect(() => {
     if (!user) return
-    init()
     getJournalEntries(user.id).then(({ data }) => {
       const list = (data as Document[]) ?? []
       setEntries(list)
-      // Calculate streak
       let s = 0
       const today = getTodayDateKey()
       const dates = list.map((e) => e.journal_date ?? '').filter(Boolean).sort().reverse()
@@ -51,7 +36,24 @@ export default function JournalPage() {
       }
       setStreak(s)
     })
-  }, [user, init])
+  }, [user])
+
+  // Called only when user explicitly clicks "Open Today"
+  const openToday = useCallback(async () => {
+    if (!user) return
+    setTodayLoading(true)
+    const { data: today } = await getTodayJournal(user.id)
+    if (today) {
+      router.push(`/doc/${today.id}`)
+      return
+    }
+    const { data: created } = await createDocument(user.id, 'journal', getTodayDateKey())
+    if (created) {
+      router.push(`/doc/${created.id}`)
+      return
+    }
+    setTodayLoading(false)
+  }, [user, router])
 
   if (loading || !user) return null
 
@@ -62,13 +64,36 @@ export default function JournalPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
           <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>◉ Dev Journal</h1>
           {streak > 0 && <span style={{ fontSize: '13px', color: 'var(--orange)' }}>🔥 {streak} day streak</span>}
+          <span style={{ flex: 1 }} />
+          <button
+            onClick={openToday}
+            disabled={todayLoading}
+            style={{
+              background: 'var(--accent)',
+              border: 'none',
+              borderRadius: 6,
+              color: 'var(--status-text)',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '0.35rem 0.75rem',
+              opacity: todayLoading ? 0.6 : 1,
+            }}
+          >
+            {todayLoading ? 'Opening…' : "Today's Entry →"}
+          </button>
         </div>
         {entries.map((entry) => (
           <div
             key={entry.id}
             onClick={() => router.push(`/doc/${entry.id}`)}
-            className="helix-hover"
-            style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0.75rem', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '0.6rem 0.75rem',
+              borderBottom: '1px solid var(--border)',
+              cursor: 'pointer',
+            }}
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-hover)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >

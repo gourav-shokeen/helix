@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -41,6 +41,7 @@ interface NoteRow {
 
 export default function ProjectPlanPage() {
   const { id: projectId } = useParams<{ id: string }>()
+  const router = useRouter()
   const [tab, setTab] = useState<Tab>('board')
 
   const [boardId, setBoardId] = useState<string>('')
@@ -234,6 +235,27 @@ export default function ProjectPlanPage() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'JetBrains Mono, monospace' }}>
       <header style={{ height: 44, borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '0.8rem' }}>
         <span style={{ color: 'var(--accent)', fontWeight: 700 }}>⬡ Helix</span>
+
+        {/* Back button */}
+        <button
+          onClick={() => router.back()}
+          title="Go back"
+          style={{
+            background: 'none',
+            border: '1px solid var(--border)',
+            borderRadius: '4px',
+            padding: '3px 8px',
+            cursor: 'pointer',
+            color: 'var(--text-secondary)',
+            fontSize: '13px',
+            lineHeight: 1,
+            flexShrink: 0,
+            fontFamily: 'JetBrains Mono, monospace',
+          }}
+        >
+          ←
+        </button>
+
         <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>/ projects / {projectId} / plan</span>
       </header>
 

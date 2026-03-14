@@ -33,8 +33,9 @@ interface EditorProps {
   onOpenDiagram?: () => void
   onDiagramReady?: (fn: (syntax: string) => void) => void
   onDiagramUpdateReady?: (fn: (id: string, dsl: string) => void) => void
-  onCommentMarkReady?: (fn: (threadId: string) => void) => void
+  onCommentMarkReady?: (fn: (threadId: string, from: number, to: number) => void) => void
   onCommentMarkRemoveReady?: (fn: (threadId: string) => void) => void
+  onCaptureSelectionReady?: (fn: () => { from: number; to: number } | null) => void
   readOnly?: boolean
   githubRepo?: string | null
 }
@@ -52,6 +53,7 @@ function TiptapEditor({
   onDiagramUpdateReady,
   onCommentMarkReady,
   onCommentMarkRemoveReady,
+  onCaptureSelectionReady,
 }: {
   projectId: string
   ydoc: Y.Doc
@@ -62,8 +64,9 @@ function TiptapEditor({
   onOpenDiagram?: () => void
   onDiagramReady?: (fn: (syntax: string) => void) => void
   onDiagramUpdateReady?: (fn: (id: string, dsl: string) => void) => void
-  onCommentMarkReady?: (fn: (threadId: string) => void) => void
+  onCommentMarkReady?: (fn: (threadId: string, from: number, to: number) => void) => void
   onCommentMarkRemoveReady?: (fn: (threadId: string) => void) => void
+  onCaptureSelectionReady?: (fn: () => { from: number; to: number } | null) => void
 }) {
   const handleUpdate = useCallback(
     ({ editor: e }: { editor: any }) => {
@@ -111,7 +114,6 @@ function TiptapEditor({
     const markdown = localStorage.getItem(key)
     if (!markdown) return
     localStorage.removeItem(key)
-    // Minimal markdown → HTML conversion for README display
     const html = markdown
       .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
       .replace(/^### (.+)$/gm, '<h3>$1</h3>')
@@ -173,11 +175,27 @@ function TiptapEditor({
     })
   }, [editor, onDiagramUpdateReady])
 
-  // Expose comment mark apply function
+  // Expose a function to capture the current selection SYNCHRONOUSLY
+  // Called by EditorWrapper BEFORE the async createThread call
+  useEffect(() => {
+    if (!editor || !onCaptureSelectionReady) return
+    onCaptureSelectionReady(() => {
+      const { from, to } = editor.state.selection
+      if (from === to) return null
+      return { from, to }
+    })
+  }, [editor, onCaptureSelectionReady])
+
+  // Apply comment mark using explicit from/to — never touches current selection
   useEffect(() => {
     if (!editor || !onCommentMarkReady) return
-    onCommentMarkReady((threadId: string) => {
-      editor.chain().focus().setMark('commentMark', { threadId }).run()
+    onCommentMarkReady((threadId: string, from: number, to: number) => {
+      const { state, view } = editor
+      const markType = state.schema.marks.commentMark
+      if (!markType) return
+      const mark = markType.create({ threadId })
+      const tr = state.tr.addMark(from, to, mark)
+      view.dispatch(tr)
     })
   }, [editor, onCommentMarkReady])
 
@@ -227,6 +245,7 @@ export function Editor({
   onDiagramUpdateReady,
   onCommentMarkReady,
   onCommentMarkRemoveReady,
+  onCaptureSelectionReady,
   readOnly = false,
   githubRepo,
 }: EditorProps) {
@@ -257,9 +276,6 @@ export function Editor({
 
       onProviderReady?.(provider)
 
-      // Only mount the editor once Yjs has finished its initial sync.
-      // This prevents y-prosemirror's cursor plugin from reading .doc
-      // before the Yjs document is populated.
       syncHandler = (synced: boolean) => {
         if (synced && !cancelled) {
           setReady({ ydoc, provider })
@@ -267,8 +283,6 @@ export function Editor({
       }
       provider.on('sync', syncHandler)
 
-      // Fallback: if the WebSocket server is unreachable (offline / dev),
-      // show the editor after 3 s so local IndexedDB content is still editable.
       fallbackTimer = setTimeout(() => {
         if (!cancelled) {
           setReady(prev => prev ?? { ydoc, provider })
@@ -323,6 +337,7 @@ export function Editor({
           onDiagramUpdateReady={onDiagramUpdateReady}
           onCommentMarkReady={onCommentMarkReady}
           onCommentMarkRemoveReady={onCommentMarkRemoveReady}
+          onCaptureSelectionReady={onCaptureSelectionReady}
         />
       )}
     </div>

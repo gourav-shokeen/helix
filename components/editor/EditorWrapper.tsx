@@ -40,6 +40,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     window.addEventListener('helix:brain:open', handler)
     return () => window.removeEventListener('helix:brain:open', handler)
   }, [])
+
   const createThread = useCreateThread(documentId)
 
   const handleOpenBrain = useCallback(() => {
@@ -72,16 +73,29 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     return () => window.removeEventListener('helix:diagram:edit', handler)
   }, [])
 
+  // Ref to call editor.chain().setMark after threadId is known
+  // Now takes explicit from/to so selection is never lost across the async gap
+  const applyCommentMarkRef = useRef<((threadId: string, from: number, to: number) => void) | null>(null)
+  const removeCommentMarkRef = useRef<((threadId: string) => void) | null>(null)
+
+  // Captures the current ProseMirror selection SYNCHRONOUSLY before any await
+  const captureSelectionRef = useRef<(() => { from: number; to: number } | null) | null>(null)
+
   const handleComment = useCallback(async (anchorText: string) => {
+    // ↓ Capture selection NOW, synchronously, before the network call
+    const range = captureSelectionRef.current?.()
+    if (!range || range.from === range.to) return
+
     const threadId = await createThread(anchorText)
     if (!threadId) return
-    applyCommentMarkRef.current?.(threadId)
+
+    // Apply mark using the saved range — no longer depends on current selection
+    applyCommentMarkRef.current?.(threadId, range.from, range.to)
+
+    // Open thread panel so the user sees the new thread immediately
+    setThreadsOpen(true)
     window.dispatchEvent(new CustomEvent('helix:threads:refresh'))
   }, [createThread])
-
-  // Ref to call editor.chain().setMark after threadId is known
-  const applyCommentMarkRef = useRef<((threadId: string) => void) | null>(null)
-  const removeCommentMarkRef = useRef<((threadId: string) => void) | null>(null)
 
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
@@ -97,6 +111,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
           onDiagramUpdateReady={(fn) => { updateDiagramRef.current = fn }}
           onCommentMarkReady={(fn) => { applyCommentMarkRef.current = fn }}
           onCommentMarkRemoveReady={(fn) => { removeCommentMarkRef.current = fn }}
+          onCaptureSelectionReady={(fn) => { captureSelectionRef.current = fn }}
           readOnly={readOnly}
           githubRepo={githubRepo}
         />
@@ -121,7 +136,6 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
             removeCommentMarkRef.current?.(threadId)
           }}
           onHighlightThread={(id) => {
-            // Scroll editor to first element with matching data-thread-id
             if (id) {
               const el = document.querySelector(`[data-thread-id="${id}"]`)
               el?.scrollIntoView({ behavior: 'smooth', block: 'center' })

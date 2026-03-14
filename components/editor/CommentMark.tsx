@@ -17,7 +17,7 @@ async function getThreads(docId: string) {
 
 export const CommentMarkExtension = Mark.create({
   name: 'commentMark',
-
+  inclusive: false,
   addAttributes() {
     return {
       threadId: { default: null },

@@ -519,4 +519,85 @@ a {
   accent-color: var(--accent);
   cursor: pointer;
 }
+/* ─── ER Diagram Dark Mode Fix ─── */
+/* foreignObject HTML is in the normal DOM namespace so global CSS reaches it */
+:root .mermaid-block foreignObject div,
+:root .mermaid-block foreignObject span,
+:root .mermaid-block foreignObject p {
+  background-color: #1a1a1e !important;
+  color: #e8e8ec !important;
+  border-color: #3a3a42 !important;
+}
 
+[data-theme='light'] .mermaid-block foreignObject div,
+[data-theme='light'] .mermaid-block foreignObject span,
+[data-theme='light'] .mermaid-block foreignObject p {
+  background-color: revert !important;
+  color: revert !important;
+  border-color: revert !important;
+}
+
+/* Modal preview */
+:root foreignObject div,
+:root foreignObject span,
+:root foreignObject p {
+  background-color: #1a1a1e !important;
+  color: #e8e8ec !important;
+  border-color: #3a3a42 !important;
+}
+
+[data-theme='light'] foreignObject div,
+[data-theme='light'] foreignObject span,
+[data-theme='light'] foreignObject p {
+  background-color: revert !important;
+  color: revert !important;
+  border-color: revert !important;
+}
+/* Catch alternating row backgrounds Mermaid sets inline */
+:root .mermaid-block foreignObject .er.attributeBoxEven,
+:root .mermaid-block foreignObject .er.attributeBoxOdd {
+  background-color: #1a1a1e !important;
+}
+
+/* Also nuke any inline styles Mermaid injects on the elements */
+:root .mermaid-block foreignObject [style*="background"] {
+  background-color: #1a1a1e !important;
+}
+
+[data-theme='light'] .mermaid-block foreignObject .er.attributeBoxEven,
+[data-theme='light'] .mermaid-block foreignObject .er.attributeBoxOdd,
+[data-theme='light'] .mermaid-block foreignObject [style*="background"] {
+  background-color: revert !important;
+}
+/* Fix ER diagram alternating row paths (light grey SVG fills) */
+:root .mermaid-block svg path[fill="hsl(240, 6.6666666667%, 86.7647058824%)"] {
+  fill: #1a1a1e !important;
+}
+
+:root .mermaid-block svg circle[fill="white"] {
+  fill: #2a2a30 !important;
+}
+
+[data-theme='light'] .mermaid-block svg path[fill="hsl(240, 6.6666666667%, 86.7647058824%)"] {
+  fill: revert !important;
+}
+
+[data-theme='light'] .mermaid-block svg circle[fill="white"] {
+  fill: revert !important;
+}
+/* Fix ER diagram in editor preview */
+:root .tiptap-editor .mermaid-block svg path[fill="hsl(240, 6.6666666667%, 86.7647058824%)"] {
+  fill: #1a1a1e !important;
+}
+
+:root .tiptap-editor .mermaid-block svg circle[fill="white"] {
+  fill: #2a2a30 !important;
+}
+
+[data-theme='light'] .tiptap-editor .mermaid-block svg path[fill="hsl(240, 6.6666666667%, 86.7647058824%)"] {
+  fill: revert !important;
+}
+
+[data-theme='light'] .tiptap-editor .mermaid-block svg circle[fill="white"] {
+  fill: revert !important;
+}

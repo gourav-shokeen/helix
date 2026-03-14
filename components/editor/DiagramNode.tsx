@@ -2,6 +2,7 @@
 import { Node, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getMermaidConfig, fixSvgColors } from '@/lib/mermaidTheme'
 
 function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
   const [svg, setSvg] = useState('')
@@ -17,6 +18,7 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
   const panStart = useRef({ x: 0, y: 0 })
   const panOffset = useRef({ x: 0, y: 0 })
   const scaleRef = useRef(1)
+  const hasUserInteracted = useRef(false)
 
   const applyTransform = useCallback((s: number) => {
     if (!containerRef.current) return
@@ -28,85 +30,8 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
     if (!code?.trim()) return
     try {
       const mermaid = (await import('mermaid')).default
-      const isLight = document.documentElement.dataset.theme === 'light'
 
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: 'base',
-        fontFamily: 'JetBrains Mono, monospace',
-        logLevel: 'fatal',
-        securityLevel: 'loose',
-        gantt: {
-          useWidth: 900,
-          barHeight: 28,
-          barGap: 8,
-          topPadding: 50,
-          fontSize: 13,
-        },
-        themeVariables: isLight ? {
-          primaryColor: '#e5e5e0',
-          primaryTextColor: '#1a1a1a',
-          primaryBorderColor: '#d0d0cc',
-          lineColor: '#505060',
-          secondaryColor: '#ededea',
-          tertiaryColor: '#f5f5f0',
-          background: '#f5f5f0',
-          mainBkg: '#ededea',
-          nodeBorder: '#d0d0cc',
-          clusterBkg: '#e5e5e0',
-          titleColor: '#1a1a1a',
-          edgeLabelBackground: '#f5f5f0',
-          sectionBkgColor: '#e5e5e0',
-          sectionBkgColor2: '#ededea',
-          altSectionBkgColor: '#ddddd8',
-          gridColor: '#d0d0cc',
-          taskBkgColor: '#00a67d',
-          taskTextColor: '#ffffff',
-          taskTextLightColor: '#1a1a1a',
-          taskTextOutsideColor: '#1a1a1a',
-          taskBorderColor: '#00a67d',
-          activeTaskBkgColor: '#00856a',
-          activeTaskBorderColor: '#00856a',
-          doneTaskBkgColor: '#c0c0bc',
-          doneTaskBorderColor: '#b0b0ac',
-          critBkgColor: '#d04040',
-          critBorderColor: '#d04040',
-          critTextColor: '#ffffff',
-          todayLineColor: '#c09000',
-          fontFamily: 'JetBrains Mono, monospace',
-        } : {
-          primaryColor: '#1c1c20',
-          primaryTextColor: '#e8e8ec',
-          primaryBorderColor: '#2e2e34',
-          lineColor: '#9090a8',
-          secondaryColor: '#141416',
-          tertiaryColor: '#242428',
-          background: '#0e0e0f',
-          mainBkg: '#1c1c20',
-          nodeBorder: '#2e2e34',
-          clusterBkg: '#141416',
-          titleColor: '#e8e8ec',
-          edgeLabelBackground: '#141416',
-          sectionBkgColor: '#1c1c20',
-          sectionBkgColor2: '#141416',
-          altSectionBkgColor: '#242428',
-          gridColor: '#2e2e34',
-          taskBkgColor: '#00d4a1',
-          taskTextColor: '#001a13',
-          taskTextLightColor: '#e8e8ec',
-          taskTextOutsideColor: '#e8e8ec',
-          taskBorderColor: '#00d4a1',
-          activeTaskBkgColor: '#00a67d',
-          activeTaskBorderColor: '#00a67d',
-          doneTaskBkgColor: '#242428',
-          doneTaskBorderColor: '#2e2e34',
-          critBkgColor: '#f87171',
-          critBorderColor: '#f87171',
-          critTextColor: '#ffffff',
-          todayLineColor: '#fbbf24',
-          fontFamily: 'JetBrains Mono, monospace',
-        },
-      })
+      mermaid.initialize(getMermaidConfig())
 
       const freshId = `${renderIdRef.current}-${Date.now()}`
       try {
@@ -127,45 +52,38 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
     renderDiagram(dsl)
   }, [dsl, renderDiagram])
 
-  // Inject a <style> block into the SVG after render to override mermaid's
-  // internal CSS (which uses specificity that beats el.style.fill assignments)
   useEffect(() => {
     if (!svg || !containerRef.current) return
     const svgEl = containerRef.current.querySelector('svg')
-    if (!svgEl) return
+    if (svgEl) fixSvgColors(svgEl)
 
-    const isLight = document.documentElement.dataset.theme === 'light'
-    const textColor    = isLight ? '#1a1a1a' : '#e8e8ec'
-    const mutedColor   = isLight ? '#505060' : '#9090a8'
-    const taskText     = isLight ? '#ffffff'  : '#001a13'
-    const outsideText  = isLight ? '#1a1a1a'  : '#e8e8ec'
+    const containerEl = containerRef.current
+    const wrapperEl = wrapperRef.current
+    const rafId = window.requestAnimationFrame(() => {
+      const svgNode = containerEl.querySelector('svg')
+      if (!svgNode || !wrapperEl) return
+      const svgWidth = (svgNode as unknown as HTMLElement).offsetWidth
+      const svgHeight = (svgNode as unknown as HTMLElement).offsetHeight
+      const containerWidth = wrapperEl.offsetWidth
+      const containerHeight = wrapperEl.offsetHeight
+      if (svgWidth <= 0 || svgHeight <= 0 || containerWidth <= 0 || containerHeight <= 0) return
+      if (hasUserInteracted.current) return
+      const fitScale = Math.min(containerWidth / svgWidth, containerHeight / svgHeight, 1)
+      const translateX = (containerWidth - svgWidth * fitScale) / 2
+      const translateY = (containerHeight - svgHeight * fitScale) / 2
+      scaleRef.current = fitScale
+      panOffset.current = { x: translateX, y: translateY }
+      setScale(fitScale)
+      applyTransform(fitScale)
+    })
+    return () => window.cancelAnimationFrame(rafId)
+  }, [svg, applyTransform])
 
-    // Fix SVG sizing
-    svgEl.removeAttribute('width')
-    svgEl.removeAttribute('height')
-    svgEl.style.width = '100%'
-    svgEl.style.minWidth = '800px'
-    svgEl.style.height = 'auto'
-    svgEl.style.display = 'block'
-
-    // Remove any existing helix override style to avoid duplicates on re-render
-    svgEl.querySelector('style[data-helix]')?.remove()
-
-    // Inject override styles — !important beats mermaid's internal <style> block
-    const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-    styleEl.setAttribute('data-helix', 'true')
-    styleEl.textContent = `
-      text, tspan { fill: ${textColor} !important; }
-      .titleText  { fill: ${textColor} !important; font-weight: 600 !important; }
-      .sectionTitle, .sectionLabel { fill: ${mutedColor} !important; }
-      .tick text, .axis text { fill: ${mutedColor} !important; }
-      .taskText   { fill: ${taskText}    !important; font-size: 12px !important; }
-      .taskTextOutsideRight,
-      .taskTextOutsideLeft  { fill: ${outsideText}  !important; font-size: 12px !important; }
-    `
-    // Prepend so mermaid's own styles still apply for non-overridden properties
-    svgEl.insertBefore(styleEl, svgEl.firstChild)
-  }, [svg])
+  useEffect(() => {
+    const observer = new MutationObserver(() => { renderDiagram(dsl) })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [dsl, renderDiagram])
 
   // Pointer capture pan — bypasses Tiptap ProseMirror event handling
   useEffect(() => {
@@ -176,7 +94,8 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
       if ((e.target as HTMLElement).closest('button')) return
       e.preventDefault()
       e.stopPropagation()
-      wrapper.setPointerCapture(e.pointerId)
+      hasUserInteracted.current = true
+      ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
       isPanning.current = true
       panStart.current = {
         x: e.clientX - panOffset.current.x,
@@ -196,7 +115,7 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
     const onPointerUp = (e: PointerEvent) => {
       if (!isPanning.current) return
       isPanning.current = false
-      wrapper.releasePointerCapture(e.pointerId)
+      ;(e.currentTarget as Element).releasePointerCapture(e.pointerId)
       wrapper.style.cursor = 'grab'
     }
 
@@ -212,25 +131,57 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
     }
   }, [applyTransform])
 
-  const zoomIn = useCallback(() => {
+  const zoomIn = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    e?.preventDefault()
+    hasUserInteracted.current = true
     const next = Math.min(3, scaleRef.current + 0.2)
     scaleRef.current = next
-    setScale(next)
+    setScale(() => next)
     applyTransform(next)
   }, [applyTransform])
 
-  const zoomOut = useCallback(() => {
+  const zoomOut = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    e?.preventDefault()
+    hasUserInteracted.current = true
     const next = Math.max(0.3, scaleRef.current - 0.2)
     scaleRef.current = next
-    setScale(next)
+    setScale(() => next)
     applyTransform(next)
   }, [applyTransform])
 
   const resetView = useCallback(() => {
-    scaleRef.current = 1
-    panOffset.current = { x: 0, y: 0 }
-    setScale(1)
-    applyTransform(1)
+    const wrapperEl = wrapperRef.current
+    const containerEl = containerRef.current
+    if (!wrapperEl || !containerEl) return
+
+    const svgEl = containerEl.querySelector('svg')
+    if (!svgEl) return
+
+    const previousTransform = containerEl.style.transform
+    containerEl.style.transform = 'translate(0px, 0px) scale(1)'
+
+    const svgRect = svgEl.getBoundingClientRect()
+    const wrapperRect = wrapperEl.getBoundingClientRect()
+
+    containerEl.style.transform = previousTransform
+
+    const svgWidth = svgRect.width
+    const svgHeight = svgRect.height
+    const containerWidth = wrapperRect.width
+    const containerHeight = wrapperRect.height
+
+    if (svgWidth <= 0 || svgHeight <= 0 || containerWidth <= 0 || containerHeight <= 0) return
+
+    const fitScale = Math.min(containerWidth / svgWidth, containerHeight / svgHeight, 1)
+    const translateX = (containerWidth - svgWidth * fitScale) / 2
+    const translateY = (containerHeight - svgHeight * fitScale) / 2
+
+    scaleRef.current = fitScale
+    panOffset.current = { x: translateX, y: translateY }
+    setScale(fitScale)
+    applyTransform(fitScale)
   }, [applyTransform])
 
   const copyDsl = useCallback(() => navigator.clipboard.writeText(dsl), [dsl])
@@ -292,11 +243,11 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
 
               {/* Zoom controls */}
               <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', alignItems: 'center', gap: 2, zIndex: 5, background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: 5, padding: '3px 6px' }}>
-                <button onClick={zoomOut} style={zoomBtnStyle}>−</button>
+                <button onClick={e => zoomOut(e)} style={zoomBtnStyle}>−</button>
                 <span style={{ color: 'var(--text-muted)', fontSize: 10, minWidth: 34, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace' }}>
                   {Math.round(scale * 100)}%
                 </span>
-                <button onClick={zoomIn} style={zoomBtnStyle}>+</button>
+                <button onClick={e => zoomIn(e)} style={zoomBtnStyle}>+</button>
                 <span style={{ color: 'var(--border)', margin: '0 2px' }}>|</span>
                 <button onClick={resetView} style={{ ...zoomBtnStyle, fontSize: 12 }}>↺</button>
               </div>

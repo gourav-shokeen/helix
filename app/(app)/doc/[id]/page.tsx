@@ -12,11 +12,9 @@ import { downloadFile } from '@/lib/utils'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { StatusBar } from '@/components/layout/StatusBar'
-// import { RightPanel } from '@/components/layout/RightPanel'
 import { CommandPalette } from '@/components/ui/CommandPalette'
 import { ShareModal } from '@/components/ui/ShareModal'
 import { GitHubSettingsModal } from '@/components/ui/GitHubSettingsModal'
-// import { EditorWrapper } from '@/components/editor/EditorWrapper'
 import type { Document, KanbanColumn, KanbanCard } from '@/types'
 
 import dynamic from 'next/dynamic'
@@ -68,7 +66,6 @@ export default function DocPage() {
   const pomodoro = usePomodoro()
   const onlineUsers = usePresence(provider)
 
-  // Auto-start/stop Pomodoro when focus mode toggles
   const toggleFocus = useCallback(() => {
     if (!isFocused) {
       pomodoro.start()
@@ -79,7 +76,6 @@ export default function DocPage() {
     toggleFocusStore()
   }, [isFocused, pomodoro, toggleFocusStore])
 
-  // Detect work session → break transition to show overlay
   const prevPomoStateRef = useRef(pomodoro.state)
   useEffect(() => {
     const prev = prevPomoStateRef.current
@@ -94,12 +90,10 @@ export default function DocPage() {
     }
   }, [pomodoro.state])
 
-  // Auth guard
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
 
-  // Load document
   useEffect(() => {
     if (!id) return
     getDocument(id).then(({ data }) => {
@@ -109,13 +103,11 @@ export default function DocPage() {
     })
   }, [id])
 
-  // Load sidebar docs
   useEffect(() => {
     if (!user) return
     getMyDocuments(user.id).then(({ data }) => setDocs((data as Document[]) ?? []))
   }, [user])
 
-  // ⌘K and ⌘⇧F / ⌘⇧G / ⌘⇧B shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCommandOpen(true) }
@@ -194,7 +186,6 @@ export default function DocPage() {
     if (!markdown) return
     const { data: newDoc } = await createDocument(user.id)
     if (!newDoc) return
-    // Stash markdown in localStorage; EditorWrapper picks it up on first mount
     localStorage.setItem(`helix_readme_import_${newDoc.id}`, markdown)
     router.push(`/doc/${newDoc.id}`)
   }, [githubRepo, user, router])
@@ -232,7 +223,9 @@ export default function DocPage() {
         showDoc
       />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* ── Main layout row ── */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minWidth: 0 }}>
+
         {/* Sidebar */}
         <div style={{ width: sidebarWidth, transition: 'width 0.3s ease', overflow: 'hidden', flexShrink: 0 }}>
           <Sidebar
@@ -244,8 +237,8 @@ export default function DocPage() {
           />
         </div>
 
-        {/* Editor + Brain Panel */}
-        <main style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+        {/* Editor — takes all remaining space, minWidth:0 prevents flex overflow */}
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex' }}>
           <EditorWrapper
             documentId={id}
             user={user}
@@ -254,7 +247,7 @@ export default function DocPage() {
             isFocused={isFocused}
             githubRepo={githubRepo}
           />
-        </main>
+        </div>
 
         {/* Right Panel */}
         <div style={{ width: rightPanelWidth, transition: 'width 0.3s ease', overflow: 'hidden', flexShrink: 0 }}>
@@ -280,7 +273,7 @@ export default function DocPage() {
         onExitFocus={toggleFocus}
       />
 
-      {/* Focus mode session complete overlay */}
+      {/* Focus mode — session complete overlay */}
       {isFocused && sessionOverlay === 'break' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,8,16,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#0d0d1a', border: '1px solid #2a2a3e', borderRadius: 12, padding: '36px 44px', textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', minWidth: 320 }}>
@@ -288,16 +281,10 @@ export default function DocPage() {
             <h3 style={{ color: '#e0e0e0', fontSize: 16, marginBottom: 8, fontWeight: 600 }}>Session complete.</h3>
             <p style={{ color: '#666', fontSize: 13, marginBottom: 28 }}>Take a 5 min break.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button
-                onClick={() => setSessionOverlay(null)}
-                style={{ background: '#00d4a1', color: '#000', border: 'none', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-              >
+              <button onClick={() => setSessionOverlay(null)} style={{ background: '#00d4a1', color: '#000', border: 'none', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 ◎ Start Break 5 min
               </button>
-              <button
-                onClick={toggleFocus}
-                style={{ background: 'none', color: '#666', border: '1px solid #2a2a3e', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}
-              >
+              <button onClick={toggleFocus} style={{ background: 'none', color: '#666', border: '1px solid #2a2a3e', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}>
                 ✕ Exit Focus
               </button>
             </div>
@@ -305,23 +292,17 @@ export default function DocPage() {
         </div>
       )}
 
-      {/* After break: start another session? */}
+      {/* Focus mode — after break overlay */}
       {isFocused && sessionOverlay === 'after-break' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,8,16,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#0d0d1a', border: '1px solid #2a2a3e', borderRadius: 12, padding: '36px 44px', textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', minWidth: 280 }}>
             <div style={{ fontSize: 36, marginBottom: 14 }}>◉</div>
             <p style={{ color: '#e0e0e0', fontSize: 14, marginBottom: 24 }}>Start another session?</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button
-                onClick={() => setSessionOverlay(null)}
-                style={{ background: '#00d4a1', color: '#000', border: 'none', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-              >
+              <button onClick={() => setSessionOverlay(null)} style={{ background: '#00d4a1', color: '#000', border: 'none', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 ▶ Yes, continue
               </button>
-              <button
-                onClick={toggleFocus}
-                style={{ background: 'none', color: '#666', border: '1px solid #2a2a3e', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}
-              >
+              <button onClick={toggleFocus} style={{ background: 'none', color: '#666', border: '1px solid #2a2a3e', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}>
                 ✕ Exit Focus
               </button>
             </div>
@@ -330,19 +311,11 @@ export default function DocPage() {
       )}
 
       {commandOpen && (
-        <CommandPalette
-          onClose={() => setCommandOpen(false)}
-          docId={id}
-          docTitle={currentDoc?.title}
-        />
+        <CommandPalette onClose={() => setCommandOpen(false)} docId={id} docTitle={currentDoc?.title} />
       )}
 
       {shareOpen && currentDoc && (
-        <ShareModal
-          docId={id}
-          isPublic={currentDoc.is_public}
-          onClose={() => setShareOpen(false)}
-        />
+        <ShareModal docId={id} isPublic={currentDoc.is_public} onClose={() => setShareOpen(false)} />
       )}
 
       {githubSettingsOpen && currentDoc && (
@@ -369,16 +342,10 @@ export default function DocPage() {
               <pre style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#ccc', whiteSpace: 'pre-wrap', lineHeight: 1.7, margin: 0 }}>{readmeModal.content}</pre>
             </div>
             <div style={{ display: 'flex', gap: 10, padding: '14px 20px', borderTop: '1px solid #2a2a3e' }}>
-              <button
-                onClick={() => navigator.clipboard.writeText(readmeModal.content)}
-                style={{ background: 'var(--accent)', color: '#000', border: 'none', borderRadius: 6, padding: '8px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-              >
+              <button onClick={() => navigator.clipboard.writeText(readmeModal.content)} style={{ background: 'var(--accent)', color: '#000', border: 'none', borderRadius: 6, padding: '8px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 Copy
               </button>
-              <button
-                onClick={() => downloadFile(readmeModal.content, 'README.md', 'text/markdown')}
-                style={{ background: 'none', color: '#aaa', border: '1px solid #2a2a3e', borderRadius: 6, padding: '8px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}
-              >
+              <button onClick={() => downloadFile(readmeModal.content, 'README.md', 'text/markdown')} style={{ background: 'none', color: '#aaa', border: '1px solid #2a2a3e', borderRadius: 6, padding: '8px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}>
                 Download .md
               </button>
             </div>

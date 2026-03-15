@@ -2,6 +2,7 @@
 /* PROMPT 4: highlight.js theme import */
 @import 'highlight.js/styles/atom-one-dark.css';
 
+
 /* ─── Design Tokens ─── */
 :root {
   --bg: #0e0e0f;
@@ -146,9 +147,20 @@ a {
 
 /* ─── Tiptap Editor ─── */
 .tiptap-editor {
-  max-width: 820px;
-  margin: 0 auto;
-  padding: 44px 60px;
+  max-width: 100%;
+  margin: 0;
+  min-height: 100%;
+  outline: none;
+}
+
+/* EditorContent wrapper — must fill full width */
+.tiptap {
+  width: 100%;
+}
+
+/* ─── ProseMirror root — must fill the full width of its container ─── */
+.ProseMirror {
+  width: 100%;
   min-height: 100%;
   outline: none;
 }
@@ -494,7 +506,7 @@ a {
 @media print {
   .sidebar, .right-panel, .thread-panel,
   footer, header, nav, .topbar { display: none !important; }
-  .tiptap-editor { max-width: 100%; padding: 20px; }
+  .tiptap-editor { max-width: 100%; width: 100%; padding: 20px; }
   body { background: white; color: #000; }
 }
 
@@ -607,4 +619,13 @@ a {
 .mermaid-block__content,
 .mermaid-block__content * {
   cursor: default !important;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+#editor-content::-webkit-scrollbar {
+  display: none;
+}
+#editor-content {
+  scrollbar-width: none;
 }

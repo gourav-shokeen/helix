@@ -54,6 +54,7 @@ function TiptapEditor({
   onCommentMarkReady,
   onCommentMarkRemoveReady,
   onCaptureSelectionReady,
+  editorRef,
 }: {
   projectId: string
   ydoc: Y.Doc
@@ -67,6 +68,7 @@ function TiptapEditor({
   onCommentMarkReady?: (fn: (threadId: string, from: number, to: number) => void) => void
   onCommentMarkRemoveReady?: (fn: (threadId: string) => void) => void
   onCaptureSelectionReady?: (fn: () => { from: number; to: number } | null) => void
+  editorRef?: React.MutableRefObject<any>
 }) {
   const handleUpdate = useCallback(
     ({ editor: e }: { editor: any }) => {
@@ -107,6 +109,11 @@ function TiptapEditor({
     onUpdate: handleUpdate,
   })
 
+  // Expose editor instance upward so the outer div's onClick can call focus()
+  useEffect(() => {
+    if (editorRef) editorRef.current = editor
+  }, [editor, editorRef])
+
   // README import from localStorage (set by handleImportReadme in doc page)
   useEffect(() => {
     if (!editor) return
@@ -140,6 +147,18 @@ function TiptapEditor({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
+  }, [editor])
+
+  // Brain panel → insert file content into editor
+  useEffect(() => {
+    if (!editor) return
+    const handler = (e: Event) => {
+      const content = (e as CustomEvent<{ content: string }>).detail?.content
+      if (!content) return
+      editor.chain().focus().insertContent(content).run()
+    }
+    window.addEventListener('helix:editor:insert', handler)
+    return () => window.removeEventListener('helix:editor:insert', handler)
   }, [editor])
 
   // Expose diagram insert function up to EditorWrapper
@@ -176,7 +195,6 @@ function TiptapEditor({
   }, [editor, onDiagramUpdateReady])
 
   // Expose a function to capture the current selection SYNCHRONOUSLY
-  // Called by EditorWrapper BEFORE the async createThread call
   useEffect(() => {
     if (!editor || !onCaptureSelectionReady) return
     onCaptureSelectionReady(() => {
@@ -220,7 +238,7 @@ function TiptapEditor({
 
   return (
     <>
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} style={{ width: '100%' }} />
       {editor && !readOnly && onOpenBrain && (
         <SlashMenu
           editor={editor}
@@ -251,6 +269,8 @@ export function Editor({
 }: EditorProps) {
   const [ready, setReady] = useState<{ ydoc: Y.Doc; provider: any } | null>(null)
   const providerRef = useRef<any>(null)
+  // Ref to access the tiptap editor instance from the outer div's onClick
+  const editorRef = useRef<any>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -314,9 +334,16 @@ export function Editor({
         overflowY: 'auto',
         position: 'relative',
         padding: '44px 60px',
-        maxWidth: '820px',
-        margin: '0 auto',
         width: '100%',
+        boxSizing: 'border-box',
+        scrollbarWidth: 'none',
+        cursor: 'text',
+      } as React.CSSProperties}
+      onClick={(e) => {
+        // Fire only when clicking the bare background (dead zone), not editor content
+        if (e.target === e.currentTarget && editorRef.current) {
+          editorRef.current.commands.focus('end')
+        }
       }}
     >
       {!ready ? (
@@ -338,6 +365,7 @@ export function Editor({
           onCommentMarkReady={onCommentMarkReady}
           onCommentMarkRemoveReady={onCommentMarkRemoveReady}
           onCaptureSelectionReady={onCaptureSelectionReady}
+          editorRef={editorRef}
         />
       )}
     </div>

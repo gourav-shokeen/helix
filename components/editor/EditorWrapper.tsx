@@ -22,6 +22,7 @@ interface EditorWrapperProps {
 
 export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, readOnly, isFocused, githubRepo }: EditorWrapperProps) {
   const [brainOpen, setBrainOpen] = useState(false)
+  const [brainCollapsed, setBrainCollapsed] = useState(false)
   const [diagramOpen, setDiagramOpen] = useState(false)
   const [diagramEditing, setDiagramEditing] = useState<{ id: string; dsl: string } | null>(null)
   const [docContent, setDocContent] = useState('')
@@ -29,14 +30,15 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
   const updateDiagramRef = useRef<((id: string, dsl: string) => void) | null>(null)
   const [threadsOpen, setThreadsOpen] = useState(false)
 
-  // Close thread panel in focus mode
+  // How wide is the Brain panel right now?
+  const brainWidth = !brainOpen ? 0 : brainCollapsed ? 36 : 360
+
   useEffect(() => {
     if (isFocused) setThreadsOpen(false)
   }, [isFocused])
 
-  // ⌘⇧B global shortcut → open Brain panel
   useEffect(() => {
-    const handler = () => { setBrainOpen(true) }
+    const handler = () => { setBrainOpen(true); setBrainCollapsed(false) }
     window.addEventListener('helix:brain:open', handler)
     return () => window.removeEventListener('helix:brain:open', handler)
   }, [])
@@ -47,6 +49,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     const el = document.querySelector('.tiptap-editor')
     setDocContent(el?.textContent ?? '')
     setBrainOpen(true)
+    setBrainCollapsed(false)
   }, [])
 
   const handleOpenDiagram = useCallback(() => {
@@ -73,33 +76,31 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     return () => window.removeEventListener('helix:diagram:edit', handler)
   }, [])
 
-  // Ref to call editor.chain().setMark after threadId is known
-  // Now takes explicit from/to so selection is never lost across the async gap
   const applyCommentMarkRef = useRef<((threadId: string, from: number, to: number) => void) | null>(null)
   const removeCommentMarkRef = useRef<((threadId: string) => void) | null>(null)
-
-  // Captures the current ProseMirror selection SYNCHRONOUSLY before any await
   const captureSelectionRef = useRef<(() => { from: number; to: number } | null) | null>(null)
 
   const handleComment = useCallback(async (anchorText: string) => {
-    // ↓ Capture selection NOW, synchronously, before the network call
     const range = captureSelectionRef.current?.()
     if (!range || range.from === range.to) return
-
     const threadId = await createThread(anchorText)
     if (!threadId) return
-
-    // Apply mark using the saved range — no longer depends on current selection
     applyCommentMarkRef.current?.(threadId, range.from, range.to)
-
-    // Open thread panel so the user sees the new thread immediately
     setThreadsOpen(true)
     window.dispatchEvent(new CustomEvent('helix:threads:refresh'))
   }, [createThread])
 
+  // Floating elements offset — always measured from the right edge of the editor area,
+  // which ends where the Brain panel begins.
+  const threadsBtnRight = threadsOpen ? `${284 + brainWidth}px` : `${4 + brainWidth}px`
+  const emojiRight = threadsOpen ? `${296 + brainWidth}px` : `${16 + brainWidth}px`
+
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}>
+    // minWidth:0 is critical on all flex children — without it, flex items can
+    // overflow their container, making the right portion visually present but
+    // outside ProseMirror's hit area (unclickable/uneditable)
+    <div style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative' }}>
         <Editor
           documentId={documentId}
           user={user}
@@ -116,7 +117,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
           githubRepo={githubRepo}
         />
         <SelectionCommentButton onComment={handleComment} />
-        <div style={{ position: 'absolute', bottom: '12px', right: threadsOpen ? '296px' : '16px', zIndex: 10, transition: 'right 0.25s ease' }}>
+        <div style={{ position: 'absolute', bottom: '12px', right: emojiRight, zIndex: 10, transition: 'right 0.25s ease' }}>
           <EmojiReactions docId={documentId} />
         </div>
       </div>
@@ -124,7 +125,21 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
       {/* Thread sidebar toggle */}
       <button
         onClick={() => setThreadsOpen((v) => !v)}
-        style={{ position: 'absolute', right: threadsOpen ? '284px' : '4px', top: '50%', transform: 'translateY(-50%)', zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', padding: '4px 3px', writingMode: 'vertical-rl', transition: 'right 0.25s ease' }}
+        style={{
+          position: 'absolute',
+          right: threadsBtnRight,
+          top: '80px',
+          zIndex: 20,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: '3px',
+          color: 'var(--text-muted)',
+          cursor: 'pointer',
+          fontSize: '10px',
+          padding: '4px 3px',
+          writingMode: 'vertical-rl',
+          transition: 'right 0.25s ease',
+        }}
       >
         {threadsOpen ? '▶' : '◀'} threads
       </button>
@@ -132,9 +147,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
       {threadsOpen && (
         <ThreadSidebar
           docId={documentId}
-          onThreadResolved={(threadId) => {
-            removeCommentMarkRef.current?.(threadId)
-          }}
+          onThreadResolved={(threadId) => { removeCommentMarkRef.current?.(threadId) }}
           onHighlightThread={(id) => {
             if (id) {
               const el = document.querySelector(`[data-thread-id="${id}"]`)
@@ -145,17 +158,20 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
       )}
 
       {brainOpen && (
-        <BrainPanel onClose={() => setBrainOpen(false)} docContent={docContent} />
+        <BrainPanel
+          onClose={() => { setBrainOpen(false); setBrainCollapsed(false) }}
+          docContent={docContent}
+          collapsed={brainCollapsed}
+          onCollapsedChange={setBrainCollapsed}
+        />
       )}
+
       {diagramOpen && (
         <DiagramModal
           onInsert={handleInsertDiagram}
           initialDsl={diagramEditing?.dsl}
           mode={diagramEditing ? 'update' : 'insert'}
-          onClose={() => {
-            setDiagramOpen(false)
-            setDiagramEditing(null)
-          }}
+          onClose={() => { setDiagramOpen(false); setDiagramEditing(null) }}
         />
       )}
     </div>

@@ -18,7 +18,7 @@ const TabButton = ({ active, onClick, children }: { active: boolean; onClick: ()
       padding: '0.25rem 0.75rem',
       background: active ? 'var(--surface-hover)' : 'transparent',
       border: 'none',
-      color: active ? 'var(--text)' : 'var(--text-muted)',
+      color: active ? 'var(--text-primary)' : 'var(--text-muted)',
       borderRadius: '4px',
       fontSize: '12px',
       fontWeight: 500,
@@ -113,7 +113,6 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setAnalysis(data)
-      // Persist repo info so Insert into Editor knows where to fetch files from
       localStorage.setItem('helix-brain-repo', JSON.stringify({ owner: repoMeta.owner, repo: repoMeta.repo }))
       setRepoStep('done')
       setAnalysisStatus(`✓ ${data.fileMap.length} files mapped`)
@@ -135,13 +134,11 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
     setError('')
   }
 
-  // Fetch file content from GitHub and insert into editor
   const handleInsert = async () => {
     if (!selectedFile) return
     setInsertStatus('pending')
     try {
-      let content = selectedFile.purpose // fallback: insert the AI summary at minimum
-
+      let content = selectedFile.purpose
       const stored = localStorage.getItem('helix-brain-repo')
       if (stored) {
         const { owner, repo } = JSON.parse(stored)
@@ -149,13 +146,9 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
           const res = await fetch(
             `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${selectedFile.path}`
           )
-          if (res.ok) {
-            content = await res.text()
-            break
-          }
+          if (res.ok) { content = await res.text(); break }
         }
       }
-
       window.dispatchEvent(new CustomEvent('helix:editor:insert', { detail: { content } }))
       setInsertStatus('success')
       setTimeout(() => setInsertStatus(''), 2000)
@@ -171,7 +164,7 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
       <aside style={{
         width: '36px',
         borderLeft: '1px solid var(--border)',
-        background: '#0d0d1a',
+        background: 'var(--surface)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -196,7 +189,7 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
       style={{
         width: '360px',
         borderLeft: '1px solid var(--border)',
-        background: '#0d0d1a',
+        background: 'var(--surface)',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
@@ -206,8 +199,8 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
     >
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '14px', fontWeight: 600 }}>🧠 Brain</span>
-          <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: '6px', padding: '2px' }}>
+          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>🧠 Brain</span>
+          <div style={{ display: 'flex', background: 'var(--surface-hover)', borderRadius: '6px', padding: '2px' }}>
             <TabButton active={tab === 'map'} onClick={() => setTab('map')}>Map</TabButton>
             <TabButton active={tab === 'repo'} onClick={() => setTab('repo')}>Repo</TabButton>
           </div>
@@ -248,7 +241,7 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
                         width: '100%', textAlign: 'left',
                         background: selectedPath === file.path ? 'var(--surface-hover)' : 'transparent',
                         border: 'none',
-                        color: selectedPath === file.path ? 'var(--text)' : 'var(--text-secondary)',
+                        color: selectedPath === file.path ? 'var(--text-primary)' : 'var(--text-secondary)',
                         fontSize: '12px', padding: '0.3rem 0.5rem 0.3rem 1rem', borderRadius: '4px',
                         cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block',
                       }}
@@ -263,7 +256,7 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
             <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', fontSize: '12px' }}>
               {selectedFile ? (
                 <>
-                  <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '0.25rem', wordBreak: 'break-all' }}>{selectedFile.path.split('/').pop()}</div>
+                  <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '0.25rem', wordBreak: 'break-all', color: 'var(--text-primary)' }}>{selectedFile.path.split('/').pop()}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.75rem', fontFamily: 'JetBrains Mono, monospace', opacity: 0.7 }}>{selectedFile.path}</div>
                   <p style={{ color: 'var(--text-secondary)', margin: '0 0 1rem 0', lineHeight: 1.7 }}>{selectedFile.purpose}</p>
                   {(selectedFile.calls || []).length > 0 && (
@@ -310,7 +303,7 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
               <>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.6 }}>Enter a public GitHub repo URL. Helix will fetch its folder structure so you can pick what to analyse.</div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input type="text" value={gitInput} onChange={e => setGitInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchFolders()} placeholder="https://github.com/owner/repo" style={{ flex: 1, padding: '0.5rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', fontSize: '12px' }} />
+                  <input type="text" value={gitInput} onChange={e => setGitInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchFolders()} placeholder="https://github.com/owner/repo" style={{ flex: 1, padding: '0.5rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', fontSize: '12px' }} />
                   <button onClick={fetchFolders} disabled={fetchingFolders || !gitInput.trim()} style={{ padding: '0.5rem 1rem', background: 'var(--accent)', border: 'none', borderRadius: '4px', color: 'var(--status-text)', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', opacity: fetchingFolders || !gitInput.trim() ? 0.6 : 1 }}>
                     {fetchingFolders ? 'Fetching...' : 'Fetch →'}
                   </button>
@@ -322,18 +315,18 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
               <>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{repoMeta.owner}/{repoMeta.repo}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{repoMeta.owner}/{repoMeta.repo}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{repoMeta.totalFiles} total files · pick folders to analyse</div>
                   </div>
                   <button onClick={resetRepo} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '11px' }}>← Change</button>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={() => setSelectedFolders(new Set(repoFolders))} style={{ fontSize: '11px', padding: '0.2rem 0.6rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-muted)', cursor: 'pointer' }}>Select all</button>
-                  <button onClick={() => setSelectedFolders(new Set())} style={{ fontSize: '11px', padding: '0.2rem 0.6rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-muted)', cursor: 'pointer' }}>Clear</button>
+                  <button onClick={() => setSelectedFolders(new Set(repoFolders))} style={{ fontSize: '11px', padding: '0.2rem 0.6rem', background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-muted)', cursor: 'pointer' }}>Select all</button>
+                  <button onClick={() => setSelectedFolders(new Set())} style={{ fontSize: '11px', padding: '0.2rem 0.6rem', background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-muted)', cursor: 'pointer' }}>Clear</button>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   {repoFolders.map(folder => (
-                    <label key={folder} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.5rem', borderRadius: '4px', cursor: 'pointer', background: selectedFolders.has(folder) ? 'var(--surface-hover)' : 'transparent', fontSize: '12px' }}>
+                    <label key={folder} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.5rem', borderRadius: '4px', cursor: 'pointer', background: selectedFolders.has(folder) ? 'var(--surface-hover)' : 'transparent', fontSize: '12px', color: 'var(--text-primary)' }}>
                       <input type="checkbox" checked={selectedFolders.has(folder)} onChange={e => { const next = new Set(selectedFolders); e.target.checked ? next.add(folder) : next.delete(folder); setSelectedFolders(next) }} style={{ accentColor: 'var(--accent)' }} />
                       <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{folder}</span>
                     </label>
@@ -357,7 +350,7 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
             {repoStep === 'done' && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
                 <div style={{ fontSize: '32px' }}>🧠</div>
-                <div style={{ fontSize: '13px', fontWeight: 600 }}>{analysisStatus}</div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{analysisStatus}</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Switching to Map tab…</div>
               </div>
             )}

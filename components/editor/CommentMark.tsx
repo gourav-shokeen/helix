@@ -1,6 +1,7 @@
 'use client'
 // components/editor/CommentMark.tsx — Tiptap Mark + Thread Sidebar
 import { Mark, mergeAttributes } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -37,6 +38,25 @@ export const CommentMarkExtension = Mark.create({
       }),
     ]
   },
+
+  // Click on a highlighted word → open threads sidebar and activate that thread
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('commentMarkClick'),
+        props: {
+          handleClick(view, _, event) {
+            const target = event.target as HTMLElement
+            const el = target.closest('[data-thread-id]') as HTMLElement | null
+            const threadId = el?.getAttribute('data-thread-id')
+            if (!threadId) return false
+            window.dispatchEvent(new CustomEvent('helix:comment:click', { detail: { threadId } }))
+            return true
+          },
+        },
+      }),
+    ]
+  },
 })
 
 // ── Types ─────────────────────────────────────────────────────
@@ -55,7 +75,6 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
   const [selectedText, setSelectedText] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Hide comment button when diagram modal or brain panel is open
   useEffect(() => {
     const onOpen = () => setModalOpen(true)
     const onClose = () => setModalOpen(false)
@@ -119,9 +138,11 @@ interface ThreadSidebarProps {
   docId: string
   onHighlightThread: (threadId: string | null) => void
   onThreadResolved?: (threadId: string) => void
+  pendingThreadId?: string | null
+  onPendingConsumed?: () => void
 }
 
-export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved }: ThreadSidebarProps) {
+export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved, pendingThreadId, onPendingConsumed }: ThreadSidebarProps) {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThread, setActiveThread] = useState<string | null>(null)
   const [replyBody, setReplyBody] = useState<Record<string, string>>({})
@@ -141,6 +162,19 @@ export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved }: Th
     window.addEventListener('helix:threads:refresh', refreshHandler)
     return () => window.removeEventListener('helix:threads:refresh', refreshHandler)
   }, [loadThreads])
+
+  // Activate thread when triggered by clicking a highlighted word
+  useEffect(() => {
+    if (!pendingThreadId) return
+    setActiveThread(pendingThreadId)
+    onHighlightThread(pendingThreadId)
+    onPendingConsumed?.()
+    // Scroll the thread card into view after render
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-thread-card-id="${pendingThreadId}"]`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }, [pendingThreadId, onHighlightThread, onPendingConsumed])
 
   // Realtime subscription
   useEffect(() => {
@@ -211,6 +245,7 @@ export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved }: Th
         return (
           <div
             key={thread.id}
+            data-thread-card-id={thread.id}
             className={`thread-card${isActive ? ' thread-card--active' : ''}${thread.resolved ? ' thread-card--resolved' : ''}`}
             onClick={() => {
               const next = isActive ? null : thread.id

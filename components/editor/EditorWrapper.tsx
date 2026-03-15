@@ -8,7 +8,6 @@ import type { User } from '@/types'
 
 const BrainPanel = dynamic(() => import('./BrainPanel').then((mod) => mod.BrainPanel), { ssr: false })
 const DiagramModal = dynamic(() => import('./DiagramModal').then((mod) => mod.DiagramModal), { ssr: false })
-const EmojiReactions = dynamic(() => import('./EmojiReactions').then((mod) => mod.EmojiReactions), { ssr: false })
 
 interface EditorWrapperProps {
   documentId: string
@@ -29,6 +28,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
   const insertDiagramRef = useRef<((syntax: string) => void) | null>(null)
   const updateDiagramRef = useRef<((id: string, dsl: string) => void) | null>(null)
   const [threadsOpen, setThreadsOpen] = useState(false)
+  const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
 
   // How wide is the Brain panel right now?
   const brainWidth = !brainOpen ? 0 : brainCollapsed ? 36 : 360
@@ -41,6 +41,17 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     const handler = () => { setBrainOpen(true); setBrainCollapsed(false) }
     window.addEventListener('helix:brain:open', handler)
     return () => window.removeEventListener('helix:brain:open', handler)
+  }, [])
+
+  // Clicking a highlighted comment mark → open threads + activate that thread
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { threadId } = (e as CustomEvent<{ threadId: string }>).detail
+      setThreadsOpen(true)
+      setPendingThreadId(threadId)
+    }
+    window.addEventListener('helix:comment:click', handler)
+    return () => window.removeEventListener('helix:comment:click', handler)
   }, [])
 
   const createThread = useCreateThread(documentId)
@@ -90,17 +101,11 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     window.dispatchEvent(new CustomEvent('helix:threads:refresh'))
   }, [createThread])
 
-  // Floating elements offset — always measured from the right edge of the editor area,
-  // which ends where the Brain panel begins.
   const threadsBtnRight = threadsOpen ? `${284 + brainWidth}px` : `${4 + brainWidth}px`
-  const emojiRight = threadsOpen ? `${296 + brainWidth}px` : `${16 + brainWidth}px`
 
   return (
-    // minWidth:0 is critical on all flex children — without it, flex items can
-    // overflow their container, making the right portion visually present but
-    // outside ProseMirror's hit area (unclickable/uneditable)
-    <div style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}>
         <Editor
           documentId={documentId}
           user={user}
@@ -117,9 +122,6 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
           githubRepo={githubRepo}
         />
         <SelectionCommentButton onComment={handleComment} />
-        <div style={{ position: 'absolute', bottom: '12px', right: emojiRight, zIndex: 10, transition: 'right 0.25s ease' }}>
-          <EmojiReactions docId={documentId} />
-        </div>
       </div>
 
       {/* Thread sidebar toggle */}
@@ -154,6 +156,8 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
               el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }
           }}
+          pendingThreadId={pendingThreadId}
+          onPendingConsumed={() => setPendingThreadId(null)}
         />
       )}
 

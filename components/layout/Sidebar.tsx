@@ -15,7 +15,6 @@ interface SidebarProps {
 export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadme }: SidebarProps) {
   const router = useRouter()
 
-  // ── Commit Feed ──────────────────────────────────────────────────
   const [commits, setCommits] = useState<GitHubCommit[]>([])
   const [commitsOpen, setCommitsOpen] = useState(true)
   const [commitsLoading, setCommitsLoading] = useState(false)
@@ -196,27 +195,10 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
                 >
                   <span style={{ color: 'var(--accent)', fontSize: '9px', marginTop: 2, flexShrink: 0 }}>●</span>
                   <div style={{ overflow: 'hidden' }}>
-                    <span
-                      style={{
-                        fontFamily: 'JetBrains Mono, monospace',
-                        fontSize: '10px',
-                        color: 'var(--accent)',
-                        display: 'block',
-                      }}
-                    >
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--accent)', display: 'block' }}>
                       {c.sha}
                     </span>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        color: 'var(--text-secondary)',
-                        display: 'block',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        lineHeight: '1.3',
-                      }}
-                    >
+                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>
                       {c.message}
                     </span>
                     <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>
@@ -232,14 +214,8 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
 
       {/* Bottom links */}
       <div style={{ borderTop: '1px solid var(--border)', padding: '0.5rem 0' }}>
-        <button onClick={() => router.push('/journal')} style={bottomBtnStyle}>
-          ◈ journal
-        </button>
         <button onClick={() => router.push('/devlog')} style={bottomBtnStyle}>
           ◉ dev log
-        </button>
-        <button onClick={() => router.push('/graph')} style={bottomBtnStyle}>
-          ◎ graph
         </button>
         {activeDocId && (
           <button onClick={() => router.push(`/projects/${activeDocId}/plan`)} style={bottomBtnStyle}>

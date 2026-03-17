@@ -68,6 +68,16 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     setDiagramOpen(true)
   }, [])
 
+  // ✅ FIX: stable useCallback so the ref-setter identity never changes between renders,
+  //    preventing the onDiagramReady effect in Editor.tsx from re-firing with a stale closure.
+  const handleDiagramReady = useCallback((fn: (syntax: string) => void) => {
+    insertDiagramRef.current = fn
+  }, [])
+
+  const handleDiagramUpdateReady = useCallback((fn: (id: string, dsl: string) => void) => {
+    updateDiagramRef.current = fn
+  }, [])
+
   const handleInsertDiagram = useCallback((syntax: string) => {
     if (diagramEditing?.id) {
       updateDiagramRef.current?.(diagramEditing.id, syntax)
@@ -113,8 +123,8 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
           onProviderReady={onProviderReady}
           onOpenBrain={handleOpenBrain}
           onOpenDiagram={handleOpenDiagram}
-          onDiagramReady={(fn) => { insertDiagramRef.current = fn }}
-          onDiagramUpdateReady={(fn) => { updateDiagramRef.current = fn }}
+          onDiagramReady={handleDiagramReady}
+          onDiagramUpdateReady={handleDiagramUpdateReady}
           onCommentMarkReady={(fn) => { applyCommentMarkRef.current = fn }}
           onCommentMarkRemoveReady={(fn) => { removeCommentMarkRef.current = fn }}
           onCaptureSelectionReady={(fn) => { captureSelectionRef.current = fn }}

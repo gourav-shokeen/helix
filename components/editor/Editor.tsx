@@ -161,12 +161,36 @@ function TiptapEditor({
     return () => window.removeEventListener('helix:editor:insert', handler)
   }, [editor])
 
-  // Expose diagram insert function up to EditorWrapper
+  // Expose editor JSON for DOCX export
+  useEffect(() => {
+    if (!editor) return
+    const handler = () => {
+      const json = editor.getJSON()
+      // Collect kanban boardIds directly from ProseMirror doc state
+      const kanbanBoards: Record<number, string> = {}
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'kanbanBlock' && node.attrs?.boardId) {
+          kanbanBoards[pos] = node.attrs.boardId
+        }
+      })
+      const boardIds = Object.values(kanbanBoards)
+      window.dispatchEvent(new CustomEvent('helix:editor:json', { detail: { json, boardIds } }))
+    }
+    window.addEventListener('helix:editor:requestjson', handler)
+    return () => window.removeEventListener('helix:editor:requestjson', handler)
+  }, [editor])
+
+  // ✅ FIX: capture editor in a local variable so the closure is never stale,
+  //    and guard against null before calling chain(). Because onDiagramReady is
+  //    now a stable useCallback in EditorWrapper, this effect only fires once
+  //    when the editor is first ready — not on every parent re-render.
   useEffect(() => {
     if (!editor || !onDiagramReady) return
+    const capturedEditor = editor
     onDiagramReady((syntax: string) => {
-      editor.chain().focus().insertContent({
-        type: 'diagramNode',
+      if (!capturedEditor) return
+      capturedEditor.chain().focus().insertContent({
+        type: 'diagram',
         attrs: {
           dsl: syntax,
           id: crypto.randomUUID(),
@@ -177,11 +201,13 @@ function TiptapEditor({
 
   useEffect(() => {
     if (!editor || !onDiagramUpdateReady) return
+    const capturedEditor = editor
     onDiagramUpdateReady((id: string, dsl: string) => {
-      const { state, view } = editor
+      if (!capturedEditor) return
+      const { state, view } = capturedEditor
       let tr = state.tr
       state.doc.descendants((pmNode: ProseMirrorNode, pos: number) => {
-        if (pmNode.type.name !== 'diagramNode') return
+        if (pmNode.type.name !== 'diagram') return
         if (pmNode.attrs.id !== id) return
         tr = tr.setNodeMarkup(pos, undefined, {
           ...pmNode.attrs,

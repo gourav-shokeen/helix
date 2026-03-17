@@ -29,8 +29,6 @@ export const defaultBoardData = (): KanbanBoardData => ({
   },
 })
 
-
-
 const COLUMN_CONFIG: Array<{ key: KanbanColumnKey; title: string }> = [
   { key: 'idea', title: 'Idea' },
   { key: 'building', title: 'Building' },
@@ -52,7 +50,7 @@ interface KanbanBoardProps {
 
 export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId, compact = false, onDataChange, externalData, focusCardTitle }: KanbanBoardProps) {
   const supabase = useMemo(() => createClient(), [])
-    const [boardData, setBoardData] = useState<KanbanBoardData>(defaultBoardData())
+  const [boardData, setBoardData] = useState<KanbanBoardData>(defaultBoardData())
   const [loading, setLoading] = useState(true)
   const [addingTo, setAddingTo] = useState<KanbanColumnKey | null>(null)
   const [newTitle, setNewTitle] = useState('')
@@ -73,10 +71,20 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
     }
   }, [])
 
+  // ✅ FIX: removed `updated_at` from the update payload.
+  // If that column doesn't exist in project_boards, Supabase silently drops
+  // the entire update, meaning cards appear in UI (local state) but are never
+  // written to the database — so the DOCX export sees empty columns.
   const persistBoard = useCallback(async (next: KanbanBoardData) => {
     setBoardData(next)
     onDataChange?.(next)
-    await supabase.from('project_boards').update({ data: next, updated_at: new Date().toISOString() }).eq('id', boardId)
+    const { error } = await supabase
+      .from('project_boards')
+      .update({ data: next })
+      .eq('id', boardId)
+    if (error) {
+      console.error('[kanban] persistBoard failed:', error)
+    }
   }, [boardId, onDataChange, supabase])
 
   const loadBoard = useCallback(async () => {
@@ -85,7 +93,12 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
       setLoading(false)
       return
     }
-    const { data } = await supabase.from('project_boards').select('data').eq('id', boardId).maybeSingle()
+    const { data, error } = await supabase
+      .from('project_boards')
+      .select('data')
+      .eq('id', boardId)
+      .maybeSingle()
+    if (error) console.error('[kanban] loadBoard failed:', error)
     setBoardData(mergeData(data?.data))
     setLoading(false)
   }, [boardId, externalData, mergeData, supabase])
@@ -118,7 +131,6 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
       color: LABEL_COLORS[0],
       createdAt: new Date().toISOString(),
     }
-
     const next: KanbanBoardData = {
       columns: {
         ...boardData.columns,
@@ -140,12 +152,10 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
 
   const handleDrop = async (e: React.DragEvent, toCol: KanbanColumnKey) => {
     if (!dragRef.current || dragRef.current.fromCol === toCol) return
-
     const { cardId, fromCol } = dragRef.current
     const source = boardData.columns[fromCol]
     const card = source.find(c => c.id === cardId)
     if (!card) return
-
     const nextData = {
       columns: {
         ...boardData.columns,
@@ -265,7 +275,7 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
   )
 })
 
-function Column({ title, children, onDragOver, onDrop }: { title: string, children: React.ReactNode, onDragOver: (e: React.DragEvent) => void, onDrop: (e: React.DragEvent) => void }) {
+function Column({ children, onDragOver, onDrop }: { title?: string, children: React.ReactNode, onDragOver: (e: React.DragEvent) => void, onDrop: (e: React.DragEvent) => void }) {
   return (
     <div
       onDragOver={onDragOver}
@@ -281,9 +291,6 @@ function Column({ title, children, onDragOver, onDrop }: { title: string, childr
         maxHeight: 'calc(100vh - 120px)',
       }}
     >
-      <div style={{ padding: '0.75rem', fontWeight: 600, fontSize: '13px', borderBottom: '1px solid var(--border)' }}>
-        {title}
-      </div>
       <div style={{ padding: '0.5rem', overflowY: 'auto', flex: 1 }}>
         {children}
       </div>

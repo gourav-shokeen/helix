@@ -9,12 +9,12 @@ import { usePresence } from '@/hooks/usePresence'
 import { getDocument, getMyDocuments, deleteDocument, createDocument, updateDocumentTitle } from '@/lib/supabase/documents'
 import { getBoardById } from '@/lib/supabase/projects'
 import { downloadFile } from '@/lib/utils'
+import { renderDiagramsForExport } from '@/lib/diagramExport'  // ✅ NEW
 import { TopBar } from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { CommandPalette } from '@/components/ui/CommandPalette'
 import { ShareModal } from '@/components/ui/ShareModal'
-import { GitHubSettingsModal } from '@/components/ui/GitHubSettingsModal'
 import type { Document, KanbanColumn, KanbanCard } from '@/types'
 
 import dynamic from 'next/dynamic'
@@ -54,13 +54,11 @@ export default function DocPage() {
   const [wordCount, setWordCount] = useState(0)
   const [commandOpen, setCommandOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
-  const [githubSettingsOpen, setGithubSettingsOpen] = useState(false)
   const [sessionOverlay, setSessionOverlay] = useState<'break' | 'after-break' | null>(null)
   const [readmeModal, setReadmeModal] = useState<{ content: string; title: string } | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [currentDoc, setCurrentDoc] = useState<Document | null>(null)
-  const [githubRepo, setGithubRepo] = useState<string | null>(null)
 
   const { isFocused, toggle: toggleFocusStore } = useFocusMode()
   const pomodoro = usePomodoro()
@@ -99,7 +97,6 @@ export default function DocPage() {
     getDocument(id).then(({ data }) => {
       const doc = data as Document ?? null
       setCurrentDoc(doc)
-      setGithubRepo(doc?.github_repo ?? null)
     })
   }, [id])
 
@@ -140,9 +137,97 @@ export default function DocPage() {
     downloadFile(await blob.text(), filename, 'text/markdown')
   }, [currentDoc])
 
+  // ✅ UPDATED: renders all diagram nodes to PNG before sending to the route
+  const handleExportDocx = useCallback(() => {
+    const handler = async (e: Event) => {
+      window.removeEventListener('helix:editor:json', handler)
+      const { json } = (e as CustomEvent<{ json: unknown }>).detail
+      if (!json) return
+
+      // Render every diagram DSL → PNG base64 on the client before the request
+      const diagramImages = await renderDiagramsForExport(json)
+
+      const res = await fetch('/api/export/docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: json,
+          title: currentDoc?.title,
+          documentId: id,
+          diagramImages,  // ✅ diagrams now travel with the request
+        }),
+      })
+      if (!res.ok) { console.error('DOCX export failed'); return }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(currentDoc?.title ?? 'document').replace(/\s+/g, '-').toLowerCase()}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    window.addEventListener('helix:editor:json', handler)
+    window.dispatchEvent(new CustomEvent('helix:editor:requestjson'))
+  }, [currentDoc, id])
+
   const handleExportPdf = useCallback(() => {
-    window.print()
-  }, [])
+    const content = document.querySelector('.tiptap-editor')?.innerHTML ?? ''
+    const printWindow = window.open('', '_blank', 'width=900,height=700')
+    if (!printWindow) return
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${currentDoc?.title ?? 'Document'}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;600;700&display=swap');
+            *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 60px 80px; max-width: 860px; margin: 0 auto; }
+            h1 { font-size: 2rem; font-weight: 700; margin: 1.5em 0 0.5em; }
+            h2 { font-size: 1.4rem; font-weight: 600; margin: 1.2em 0 0.4em; }
+            h3 { font-size: 1.1rem; font-weight: 600; margin: 1em 0 0.3em; color: #444; }
+            p { margin-bottom: 0.8em; }
+            ul, ol { padding-left: 1.5em; margin-bottom: 0.8em; }
+            li { margin-bottom: 0.25em; }
+            blockquote { border-left: 3px solid #00a67d; padding-left: 1em; color: #555; margin: 0.8em 0; }
+            code { font-family: 'JetBrains Mono', monospace; background: #f4f4f4; border: 1px solid #ddd; border-radius: 3px; padding: 0.1em 0.35em; font-size: 0.88em; color: #c7254e; }
+            pre { background: #f8f8f8; border: 1px solid #ddd; border-left: 3px solid #00a67d; border-radius: 4px; padding: 1em; margin: 0.8em 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; }
+            pre code { background: none; border: none; padding: 0; color: inherit; }
+            table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+            th, td { border: 1px solid #ddd; padding: 0.4em 0.75em; text-align: left; font-size: 13px; }
+            th { background: #f5f5f5; font-weight: 600; }
+            a { color: #00a67d; text-decoration: none; }
+            ul[data-type='taskList'] { list-style: none; padding-left: 0; }
+            ul[data-type='taskList'] li { display: flex; align-items: flex-start; gap: 0.5em; }
+            .code-block-wrapper > *:not(.code-block-content) { display: none !important; }
+            .code-block-content { display: block !important; }
+            .code-block-content pre { display: block !important; }
+            .kanban-block { display: block !important; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin: 1em 0; page-break-inside: avoid; }
+            .kanban-columns { display: flex !important; min-height: 80px; }
+            .kanban-column { display: block !important; flex: 1; border-right: 1px solid #ccc; padding: 0.75em; background: #fafafa; min-width: 0; }
+            .kanban-column:last-child { border-right: none; }
+            .kanban-column__title { display: flex !important; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #333; margin-bottom: 0.6em; padding-bottom: 0.4em; border-bottom: 1px solid #ddd; }
+            .kanban-card { display: block !important; background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 0.4em 0.6em; margin-bottom: 0.35em; font-size: 12px; color: #1a1a1a; }
+            .kanban-column > button, .kanban-column > input, .kanban-card button { display: none !important; }
+            .mermaid-block { border: 1px solid #ddd; border-radius: 6px; padding: 1em; margin: 0.8em 0; page-break-inside: avoid; }
+            .mermaid-block__header { display: none !important; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 2cm 2.5cm; size: A4; }
+            }
+          </style>
+        </head>
+        <body>${content}</body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.onload = () => {
+      printWindow.focus()
+      printWindow.print()
+      printWindow.close()
+    }
+  }, [currentDoc])
 
   const handleExportCsv = useCallback(async () => {
     const kanbanEl = document.querySelector('[data-type="kanban-block"]') as HTMLElement | null
@@ -178,18 +263,6 @@ export default function DocPage() {
     router.push('/dashboard')
   }, [id, currentDoc, router])
 
-  const handleImportReadme = useCallback(async () => {
-    if (!githubRepo || !user) return
-    const res = await fetch(`/api/github/readme?repo=${encodeURIComponent(githubRepo)}`)
-    if (!res.ok) { alert('Could not fetch README from GitHub.'); return }
-    const { markdown } = await res.json()
-    if (!markdown) return
-    const { data: newDoc } = await createDocument(user.id)
-    if (!newDoc) return
-    localStorage.setItem(`helix_readme_import_${newDoc.id}`, markdown)
-    router.push(`/doc/${newDoc.id}`)
-  }, [githubRepo, user, router])
-
   if (loading || !user) return null
 
   const sidebarWidth = isFocused ? 0 : 205
@@ -215,11 +288,11 @@ export default function DocPage() {
         onShareClick={() => setShareOpen(true)}
         onCommandClick={() => setCommandOpen(true)}
         onExportMd={handleExportMd}
+        onExportDocx={handleExportDocx}
         onExportPdf={handleExportPdf}
         onExportCsv={handleExportCsv}
         onGenerateReadme={handleGenerateReadme}
         onDeleteDoc={handleDeleteDoc}
-        onGitHubSettings={() => setGithubSettingsOpen(true)}
         showDoc
       />
 
@@ -232,8 +305,6 @@ export default function DocPage() {
             docs={docs}
             activeDocId={id}
             onNewDoc={handleNewDoc}
-            githubRepo={githubRepo}
-            onImportReadme={handleImportReadme}
           />
         </div>
 
@@ -245,11 +316,8 @@ export default function DocPage() {
             onWordCount={setWordCount}
             onProviderReady={setProvider}
             isFocused={isFocused}
-            githubRepo={githubRepo}
           />
         </div>
-
-        {/* Right Panel */}
         <div style={{ width: rightPanelWidth, transition: 'width 0.3s ease', overflow: 'hidden', flexShrink: 0 }}>
           <RightPanel
             onlineUsers={onlineUsers}
@@ -316,18 +384,6 @@ export default function DocPage() {
 
       {shareOpen && currentDoc && (
         <ShareModal docId={id} isPublic={currentDoc.is_public} onClose={() => setShareOpen(false)} />
-      )}
-
-      {githubSettingsOpen && currentDoc && (
-        <GitHubSettingsModal
-          docId={id}
-          currentRepo={githubRepo}
-          onClose={() => setGithubSettingsOpen(false)}
-          onRepoSaved={(repo) => {
-            setGithubRepo(repo)
-            setCurrentDoc(prev => prev ? { ...prev, github_repo: repo ?? undefined } : prev)
-          }}
-        />
       )}
 
       {/* README modal */}

@@ -91,10 +91,8 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
 
   useEffect(() => { renderDiagram(dsl) }, [dsl, renderDiagram])
 
-  // After SVG is in the DOM — fix colors including foreignObject HTML
   useEffect(() => {
     if (!svg || !containerRef.current) return
-    // Use rAF to ensure dangerouslySetInnerHTML has fully committed to DOM
     const raf = requestAnimationFrame(() => {
       const svgEl = containerRef.current?.querySelector('svg')
       if (svgEl) fixSvgColors(svgEl as SVGElement)
@@ -109,15 +107,14 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
     return () => cancelAnimationFrame(raf)
   }, [svg, fitToView, applyTransform])
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e?.stopPropagation(); e?.preventDefault()
-    hasUserInteracted.current = true
-    const delta = e.deltaY < 0 ? 0.2 : -0.2
-    const newScale = Math.max(0.1, Math.min(5, scaleRef.current - delta))
-    setScale(newScale)
-    scaleRef.current = newScale
-    applyTransform(newScale)
-  }, [applyTransform])
+  // ✅ Wheel events on the diagram container are blocked so the page scrolls normally
+  useEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+    const block = (e: WheelEvent) => { e.stopPropagation() }
+    el.addEventListener('wheel', block, { passive: true })
+    return () => el.removeEventListener('wheel', block)
+  }, [])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return
@@ -148,17 +145,18 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
 
   return (
     <NodeViewWrapper>
-      <div className="mermaid-block" data-diagram-id={nodeId}
+      <div
+        ref={wrapperRef}
+        className="mermaid-block"
+        data-diagram-id={nodeId}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => { setHovered(false); handleMouseUp() }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
-        className={selected ? 'is-selected' : ''}
         style={{
-          border: '1px solid var(--border)',
+          border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
           borderRadius: '8px',
           overflow: 'hidden',
           position: 'relative',
@@ -183,22 +181,23 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
                 position: 'absolute',
                 top: '8px',
                 right: '8px',
-                width: '24px',
-                height: '24px',
-                background: 'var(--surface-raised)',
-                border: '1px solid var(--border)',
+                width: '26px',
+                height: '26px',
+                background: '#2a2a30',
+                border: '1px solid #4a4a55',
                 borderRadius: '50%',
-                color: 'var(--text-muted)',
+                color: '#ffffff',
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-                lineHeight: 1,
-                zIndex: 10,
+                fontSize: '18px',
+                fontWeight: 400,
+                lineHeight: '24px',
+                textAlign: 'center',
+                zIndex: 20,
+                padding: 0,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.6)',
               }}
             >
-              &times;
+              ✕
             </button>
             <button
               onClick={resetView}
@@ -207,14 +206,15 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
                 position: 'absolute',
                 bottom: '8px',
                 right: '8px',
-                padding: '4px 8px',
-                background: 'var(--surface-raised)',
-                border: '1px solid var(--border)',
+                padding: '4px 10px',
+                background: '#2a2a30',
+                border: '1px solid #4a4a55',
                 borderRadius: '4px',
-                color: 'var(--text-muted)',
+                color: '#ffffff',
                 cursor: 'pointer',
                 fontSize: '10px',
-                zIndex: 10,
+                zIndex: 20,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.6)',
               }}
             >
               Reset View

@@ -50,7 +50,6 @@ export function fixSvgString(svgString: string): string {
   if (!isDark) return svgString
 
   return svgString.replace(/fill="([^"]*)"/g, (match, fill) => {
-    // Strip surrounding quotes Mermaid sometimes bakes in e.g. `"hsl(...)"`
     const c = fill.trim().replace(/^"|"$/g, '').toLowerCase()
     if (c === 'none' || c === 'transparent') return match
     const rgb = parseColorSimple(c)
@@ -71,21 +70,90 @@ export function fixSvgColors(svgEl: SVGElement) {
   svgEl.style.display = 'block'
 
   const isDark = document.documentElement.dataset.theme !== 'light'
-  if (!isDark) return
 
-  // Fix ER diagram: attribute rows render as HTML inside <foreignObject>
-  // SVG stylesheet injection does NOT reach into foreignObject HTML namespace
-  // Only direct DOM style manipulation works here
+  // ✅ Inject a <style> block into the SVG to fix Mermaid flowchart node label
+  // containers. Mermaid renders each node with two rects: the outer shape AND
+  // a `.label-container` rect behind the text. The label-container gets
+  // `primaryColor` as fill, which in some Mermaid versions bakes out as black
+  // regardless of themeVariables. A <style> inside the SVG is the only reliable fix.
+  const existingStyle = svgEl.querySelector('style[data-helix-fix]')
+  if (existingStyle) existingStyle.remove()
+
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+  style.setAttribute('data-helix-fix', '1')
+
+  if (isDark) {
+    style.textContent = `
+      .node rect, .node circle, .node ellipse, .node polygon, .node path {
+        fill: #1c1c20 !important;
+        stroke: #3a3a42 !important;
+      }
+      .label-container {
+        fill: #1c1c20 !important;
+        stroke: #3a3a42 !important;
+      }
+      .nodeLabel, .nodeLabel p {
+        color: #e8e8ec !important;
+        fill: #e8e8ec !important;
+      }
+      .edgeLabel .label rect, .edgeLabel rect {
+        fill: #141416 !important;
+      }
+      .edgeLabel span, .edgeLabel p {
+        color: #e8e8ec !important;
+        background-color: #141416 !important;
+      }
+      .cluster rect {
+        fill: #141416 !important;
+        stroke: #3a3a42 !important;
+      }
+      .cluster text {
+        fill: #e8e8ec !important;
+      }
+      text, tspan {
+        fill: #e8e8ec;
+      }
+      .label text, .label tspan {
+        fill: #e8e8ec !important;
+      }
+    `
+  } else {
+    style.textContent = `
+      .node rect, .node circle, .node ellipse, .node polygon, .node path {
+        fill: #ddddd8 !important;
+        stroke: #aaaaaa !important;
+      }
+      .label-container {
+        fill: #ddddd8 !important;
+        stroke: #aaaaaa !important;
+      }
+      .nodeLabel, .nodeLabel p { color: #111111 !important; }
+      .edgeLabel span, .edgeLabel p {
+        color: #111111 !important;
+        background-color: #f5f5f0 !important;
+      }
+    `
+  }
+  svgEl.insertBefore(style, svgEl.firstChild)
+
+  // Fix ER diagram foreignObject HTML (style injection doesn't reach HTML namespace)
   svgEl.querySelectorAll('foreignObject').forEach(fo => {
     fo.querySelectorAll<HTMLElement>('*').forEach(el => {
-      el.style.setProperty('background-color', '#1a1a1e', 'important')
-      el.style.setProperty('color', '#e8e8ec', 'important')
-      el.style.setProperty('border-color', '#3a3a42', 'important')
+      if (isDark) {
+        el.style.setProperty('background-color', '#1a1a1e', 'important')
+        el.style.setProperty('color', '#e8e8ec', 'important')
+        el.style.setProperty('border-color', '#3a3a42', 'important')
+      } else {
+        el.style.removeProperty('background-color')
+        el.style.removeProperty('color')
+        el.style.removeProperty('border-color')
+      }
     })
   })
 
-  // Fix any SVG shapes that are still light
-  // Note: strip surrounding quotes Mermaid sometimes bakes into fill attributes e.g. `"hsl(...)"`
+  if (!isDark) return
+
+  // Fallback: fix any SVG shapes still rendering light
   svgEl.querySelectorAll('rect, path, polygon, circle, ellipse').forEach(el => {
     const fill = el.getAttribute('fill')
     if (!fill) return
@@ -97,7 +165,7 @@ export function fixSvgColors(svgEl: SVGElement) {
     }
   })
 
-  // Fix dark SVG text
+  // Fallback: fix near-black text
   svgEl.querySelectorAll('text, tspan').forEach(el => {
     const fill = el.getAttribute('fill')
     if (!fill) return

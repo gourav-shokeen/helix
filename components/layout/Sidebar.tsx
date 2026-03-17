@@ -211,18 +211,6 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
           )}
         </div>
       )}
-
-      {/* Bottom links */}
-      <div style={{ borderTop: '1px solid var(--border)', padding: '0.5rem 0' }}>
-        <button onClick={() => router.push('/devlog')} style={bottomBtnStyle}>
-          ◉ dev log
-        </button>
-        {activeDocId && (
-          <button onClick={() => router.push(`/projects/${activeDocId}/plan`)} style={bottomBtnStyle}>
-            ▦ plan
-          </button>
-        )}
-      </div>
     </aside>
   )
 }
@@ -236,17 +224,4 @@ function relTime(dateStr: string): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
-}
-
-const bottomBtnStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.4rem 0.75rem',
-  background: 'none',
-  border: 'none',
-  cursor: 'pointer',
-  textAlign: 'left',
-  fontSize: '11px',
-  color: 'var(--text-muted)',
-  fontFamily: 'JetBrains Mono, monospace',
-  transition: 'color 0.15s',
 }

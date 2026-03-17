@@ -16,11 +16,11 @@ interface TopBarProps {
   onHistoryClick?: () => void
   onCommandClick?: () => void
   onExportMd?: () => void
+  onExportDocx?: () => void
   onExportPdf?: () => void
   onExportCsv?: () => void
   onGenerateReadme?: () => void
   onDeleteDoc?: () => void
-  onGitHubSettings?: () => void
   showDoc?: boolean
 }
 
@@ -32,11 +32,11 @@ export function TopBar({
   onHistoryClick,
   onCommandClick,
   onExportMd,
+  onExportDocx,
   onExportPdf,
   onExportCsv,
   onGenerateReadme,
   onDeleteDoc,
-  onGitHubSettings,
   showDoc = true,
 }: TopBarProps) {
   const router = useRouter()
@@ -46,7 +46,6 @@ export function TopBar({
   const inputRef = useRef<HTMLInputElement>(null)
   const exportRef = useRef<HTMLDivElement>(null)
 
-  // Close export dropdown on outside click
   useEffect(() => {
     if (!exportOpen) return
     const handler = (e: MouseEvent) => {
@@ -75,14 +74,12 @@ export function TopBar({
         zIndex: 10,
       }}
     >
-      {/* App name */}
       <span
         style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '15px', letterSpacing: '-0.02em', flexShrink: 0 }}
       >
         {APP_NAME}
       </span>
 
-      {/* Back button */}
       <button
         onClick={() => router.back()}
         title="Go back"
@@ -102,7 +99,6 @@ export function TopBar({
         ←
       </button>
 
-      {/* Doc title */}
       {showDoc && (
         <div style={{ flex: 1, overflow: 'hidden' }}>
           {editing ? (
@@ -150,7 +146,6 @@ export function TopBar({
       )}
 
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        {/* Presence avatars */}
         <div style={{ display: 'flex', gap: '-4px' }}>
           {onlineUsers.slice(0, 5).map((u, i) => (
             <Avatar key={u.id} name={u.name} avatarUrl={u.avatar_url} color={CURSOR_COLORS[i % CURSOR_COLORS.length]} size={24} />
@@ -164,8 +159,7 @@ export function TopBar({
           <button onClick={onHistoryClick} className="helix-hover" style={btnStyle}>◷ history</button>
         )}
 
-        {/* Export dropdown */}
-        {(onExportMd || onExportPdf || onExportCsv || onGenerateReadme) && (
+        {(onExportMd || onExportDocx || onExportPdf || onExportCsv || onGenerateReadme) && (
           <div ref={exportRef} style={{ position: 'relative' }}>
             <button
               onClick={() => setExportOpen((v) => !v)}
@@ -190,27 +184,23 @@ export function TopBar({
                   boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
                 }}
               >
+                {onExportDocx && (
+                  <button onClick={() => { onExportDocx(); setExportOpen(false) }} style={dropItemStyle}>
+                    ↓ Word (.docx)
+                  </button>
+                )}
                 {onExportMd && (
-                  <button
-                    onClick={() => { onExportMd(); setExportOpen(false) }}
-                    style={dropItemStyle}
-                  >
+                  <button onClick={() => { onExportMd(); setExportOpen(false) }} style={dropItemStyle}>
                     ↓ Markdown
                   </button>
                 )}
                 {onExportPdf && (
-                  <button
-                    onClick={() => { onExportPdf(); setExportOpen(false) }}
-                    style={dropItemStyle}
-                  >
+                  <button onClick={() => { onExportPdf(); setExportOpen(false) }} style={dropItemStyle}>
                     ↓ PDF
                   </button>
                 )}
                 {onExportCsv && (
-                  <button
-                    onClick={() => { onExportCsv(); setExportOpen(false) }}
-                    style={dropItemStyle}
-                  >
+                  <button onClick={() => { onExportCsv(); setExportOpen(false) }} style={dropItemStyle}>
                     ↓ Kanban CSV
                   </button>
                 )}
@@ -229,9 +219,6 @@ export function TopBar({
 
         {onDeleteDoc && (
           <button onClick={onDeleteDoc} className="helix-hover" style={{ ...btnStyle, color: 'var(--red)', borderColor: 'var(--red)' }} title="Delete document">⌫ delete</button>
-        )}
-        {onGitHubSettings && (
-          <button onClick={onGitHubSettings} className="helix-hover" style={btnStyle} title="GitHub Integration">◎ github</button>
         )}
         {onCommandClick && (
           <button onClick={onCommandClick} className="helix-hover" style={btnStyle}>⌘K</button>

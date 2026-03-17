@@ -40,44 +40,36 @@ export function CommandPalette({ onClose, docId, docTitle }: CommandPaletteProps
         if (data) router.push(`/doc/${data.id}`)
       },
     },
-    { id: 'journal', icon: '◉', label: 'Go to Journal', action: () => router.push('/journal') },
-    { id: 'graph',   icon: '◎', label: 'Go to Graph',   action: () => router.push('/graph')   },
     { id: 'dashboard', icon: '▦', label: 'Go to Dashboard', action: () => router.push('/dashboard') },
     { id: 'theme',  icon: '◑', label: 'Toggle Theme',   action: toggleTheme },
     { id: 'focus',  icon: '⬡', label: 'Toggle Focus Mode', action: toggleFocus },
     ...(docId
       ? [
           {
-            id: 'export-md',
+            id: 'export-docx',
             icon: '⌥',
-            label: 'Export Markdown',
+            label: 'Export DOCX',
             action: async () => {
-              const res = await fetch('/api/export/markdown', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: document.querySelector('.tiptap-editor')?.innerHTML, title: docTitle }),
-              })
-              const blob = await res.blob()
-              const url = URL.createObjectURL(blob)
-              const a = window.document.createElement('a')
-              a.href = url
-              a.download = `${docTitle ?? 'document'}.md`
-              a.click()
-            },
-          },
-          {
-            id: 'export-readme',
-            icon: '▤',
-            label: 'Generate README',
-            action: async () => {
-              const content = window.document.querySelector('.tiptap-editor')?.textContent ?? ''
-              const res = await fetch('/api/export/readme', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content, title: docTitle }),
-              })
-              const { readme } = await res.json()
-              alert(readme)
+              const handler = async (e: Event) => {
+                window.removeEventListener('helix:editor:json', handler)
+                const { json } = (e as CustomEvent<{ json: any }>).detail
+                if (!json) return
+                const res = await fetch('/api/export/docx', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ content: json, title: docTitle, documentId: docId }),
+                })
+                if (!res.ok) return
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                const a = window.document.createElement('a')
+                a.href = url
+                a.download = `${(docTitle ?? 'document').replace(/\s+/g, '-').toLowerCase()}.docx`
+                a.click()
+                URL.revokeObjectURL(url)
+              }
+              window.addEventListener('helix:editor:json', handler)
+              window.dispatchEvent(new CustomEvent('helix:editor:requestjson'))
             },
           },
         ]

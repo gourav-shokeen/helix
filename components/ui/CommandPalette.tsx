@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store/themeStore'
 import { useFocusStore } from '@/store/focusStore'
 import { createDocument } from '@/lib/supabase/documents'
 import { useAuthStore } from '@/store/authStore'
+import { renderDiagramsForExport } from '@/lib/diagramExport'
 
 interface Command {
   id: string
@@ -54,10 +55,18 @@ export function CommandPalette({ onClose, docId, docTitle }: CommandPaletteProps
                 window.removeEventListener('helix:editor:json', handler)
                 const { json } = (e as CustomEvent<{ json: any }>).detail
                 if (!json) return
+
+                const diagramImages = await renderDiagramsForExport(json) // ← fix
+
                 const res = await fetch('/api/export/docx', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ content: json, title: docTitle, documentId: docId }),
+                  body: JSON.stringify({
+                    content: json,
+                    title: docTitle,
+                    documentId: docId,
+                    diagramImages, // ← fix
+                  }),
                 })
                 if (!res.ok) return
                 const blob = await res.blob()

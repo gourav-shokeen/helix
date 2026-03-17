@@ -1,23 +1,47 @@
-'use client'
-// hooks/useDoc.ts
-import { useCallback, useState } from 'react'
-import { updateDocumentTitle } from '@/lib/supabase/documents'
-import type { Document } from '@/types'
+// hooks/useDocxExport.ts
+// Drop-in hook — call exportDocx() from your toolbar/command palette button
+import { renderDiagramsForExport } from '@/lib/diagramExport'
 
-export function useDoc(initialDoc: Document | null) {
-    const [doc, setDoc] = useState<Document | null>(initialDoc)
-    const [saving, setSaving] = useState(false)
+export function useDocxExport() {
+  async function exportDocx({
+    content,        // Tiptap JSON (editor.getJSON())
+    title,          // document title string
+    documentId,     // Supabase document id (for kanban board fetch)
+  }: {
+    content: any
+    title: string
+    documentId?: string
+  }) {
+    try {
+      // 1. Pre-render every diagram node → base64 PNG map
+      //    Must run in browser (uses canvas API) — cannot run in route.ts
+      const diagramImages = await renderDiagramsForExport(content)
 
-    const saveTitle = useCallback(
-        async (title: string) => {
-            if (!doc) return
-            setSaving(true)
-            const { data } = await updateDocumentTitle(doc.id, title)
-            if (data) setDoc(data as Document)
-            setSaving(false)
-        },
-        [doc]
-    )
+      // 2. POST everything to the route
+      const res = await fetch('/api/export/docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, title, documentId, diagramImages }),
+      })
 
-    return { doc, setDoc, saving, saveTitle }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error ?? 'Export failed')
+      }
+
+      // 3. Trigger browser download
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('[helix] docx export error:', e)
+      throw e
+    }
+  }
+
+  return { exportDocx }
 }

@@ -2,7 +2,7 @@
 // components/editor/CommentMark.tsx — Tiptap Mark + Thread Sidebar
 import { Mark, mergeAttributes } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 async function getThreads(docId: string) {
@@ -39,7 +39,6 @@ export const CommentMarkExtension = Mark.create({
     ]
   },
 
-  // Click on a highlighted word → open threads sidebar and activate that thread
   addProseMirrorPlugins() {
     return [
       new Plugin({
@@ -74,9 +73,13 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const [selectedText, setSelectedText] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const bubbleRef = useRef<HTMLDivElement>(null)
+  // Track whether the user is actively dragging a selection
+  const isSelectingRef = useRef(false)
 
+  // Hide when a modal opens
   useEffect(() => {
-    const onOpen = () => setModalOpen(true)
+    const onOpen = () => { setModalOpen(true); setPos(null) }
     const onClose = () => setModalOpen(false)
     window.addEventListener('helix:diagram:edit', onOpen)
     window.addEventListener('helix:brain:open', onOpen)
@@ -88,27 +91,65 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
     }
   }, [])
 
+  // mousedown → mark that a new selection is starting, hide the bubble
+  // UNLESS the click is on the bubble itself
   useEffect(() => {
-    const handler = () => {
-      const sel = window.getSelection()
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        setPos(null)
-        return
-      }
-      const text = sel.toString().trim()
-      const range = sel.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
-      setSelectedText(text)
-      setPos({ top: rect.top - 36, left: rect.left + rect.width / 2 - 50 })
+    const onMouseDown = (e: MouseEvent) => {
+      if (bubbleRef.current?.contains(e.target as Node)) return
+      isSelectingRef.current = true
+      setPos(null)
     }
-    document.addEventListener('selectionchange', handler)
-    return () => document.removeEventListener('selectionchange', handler)
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
+
+  // mouseup → selection is done, now check what's selected and show bubble
+  useEffect(() => {
+    const onMouseUp = () => {
+      if (!isSelectingRef.current) return
+      isSelectingRef.current = false
+
+      // Small delay so the browser finalises the selection
+      setTimeout(() => {
+        const sel = window.getSelection()
+        if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+          setPos(null)
+          return
+        }
+        const text = sel.toString().trim()
+        const range = sel.getRangeAt(0)
+        const rect = range.getBoundingClientRect()
+        if (rect.width === 0 && rect.height === 0) { setPos(null); return }
+        setSelectedText(text)
+        setPos({
+          top: rect.top - 40,
+          left: Math.max(8, rect.left + rect.width / 2 - 55),
+        })
+      }, 10)
+    }
+    document.addEventListener('mouseup', onMouseUp)
+    return () => document.removeEventListener('mouseup', onMouseUp)
+  }, [])
+
+  // Also hide on scroll so the bubble doesn't float away from text
+  useEffect(() => {
+    const onScroll = () => setPos(null)
+    window.addEventListener('scroll', onScroll, true)
+    return () => window.removeEventListener('scroll', onScroll, true)
+  }, [])
+
+  // Hide on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPos(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   if (!pos || modalOpen) return null
 
   return (
     <div
+      ref={bubbleRef}
       className="helix-fade-in"
       style={{
         position: 'fixed',
@@ -123,8 +164,20 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
       }}
     >
       <button
-        onMouseDown={(e) => { e.preventDefault(); onComment(selectedText); setPos(null) }}
-        style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '12px', fontFamily: 'JetBrains Mono, monospace' }}
+        onMouseDown={(e) => {
+          e.preventDefault()
+          const text = selectedText
+          setPos(null)
+          onComment(text)
+        }}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: 'var(--accent)',
+          cursor: 'pointer',
+          fontSize: '12px',
+          fontFamily: 'JetBrains Mono, monospace',
+        }}
       >
         💬 Comment
       </button>
@@ -163,20 +216,17 @@ export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved, pend
     return () => window.removeEventListener('helix:threads:refresh', refreshHandler)
   }, [loadThreads])
 
-  // Activate thread when triggered by clicking a highlighted word
   useEffect(() => {
     if (!pendingThreadId) return
     setActiveThread(pendingThreadId)
     onHighlightThread(pendingThreadId)
     onPendingConsumed?.()
-    // Scroll the thread card into view after render
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-thread-card-id="${pendingThreadId}"]`)
       el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     })
   }, [pendingThreadId, onHighlightThread, onPendingConsumed])
 
-  // Realtime subscription
   useEffect(() => {
     const channel = supabase
       .channel(`threads:${docId}`)

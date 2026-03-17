@@ -23,6 +23,62 @@ import { GitHubIssueNode } from './GitHubIssueNode'
 import { SlashMenu } from './SlashMenu'
 import { WS_URL, CURSOR_COLORS } from '@/lib/constants'
 import type { User } from '@/types'
+import Highlight from '@tiptap/extension-highlight'
+
+// ✅ Toolbar — inlined, uses Helix CSS variables from globals.css
+function EditorToolbar({ editor }: { editor: any }) {
+  if (!editor) return null
+
+  const btnStyle = (active: boolean): React.CSSProperties => ({
+    padding: '2px 8px',
+    borderRadius: 4,
+    fontSize: 12,
+    fontFamily: 'JetBrains Mono, monospace',
+    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+    background: active ? 'var(--accent)' : 'var(--surface-hover)',
+    color: active ? 'var(--status-text)' : 'var(--text-secondary)',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  })
+  const md = (e: React.MouseEvent) => e.preventDefault()
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: 4,
+      padding: '6px 12px',
+      borderBottom: '1px solid var(--border)',
+      backgroundColor: 'var(--surface)',
+    }}>
+      <button onMouseDown={md} onClick={() => editor.chain().focus().toggleBold().run()}
+        style={{...btnStyle(editor.isActive('bold')), fontWeight:700}} title="Bold (⌘B)">B</button>
+
+      <button onMouseDown={md} onClick={() => editor.chain().focus().toggleItalic().run()}
+        style={{...btnStyle(editor.isActive('italic')), fontStyle:'italic'}} title="Italic (⌘I)">I</button>
+
+      <button onMouseDown={md} onClick={() => editor.chain().focus().toggleHighlight().run()}
+        style={btnStyle(editor.isActive('highlight'))} title="Highlight">
+        <span style={{borderBottom: '2px solid currentColor'}}>H</span>
+      </button>
+
+      <div style={{width:1, height:16, background:'var(--border-light)', margin:'0 4px'}} />
+
+      {([1,2,3] as const).map(level => (
+        <button key={level} onMouseDown={md}
+          onClick={() => editor.chain().focus().toggleHeading({ level }).run()}
+          style={btnStyle(editor.isActive('heading', { level }))}
+          title={`Heading ${level} (⌘⌥${level})`}>
+          H{level}
+        </button>
+      ))}
+
+      <button onMouseDown={md} onClick={() => editor.chain().focus().setParagraph().run()}
+        style={btnStyle(editor.isActive('paragraph'))} title="Normal text">¶</button>
+    </div>
+  )
+}
 
 interface EditorProps {
   documentId: string
@@ -80,9 +136,13 @@ function TiptapEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
+      // ✅ CHANGE 2: Added heading levels to existing StarterKit config
       StarterKit.configure({
         codeBlock: false,
         history: false,
+        heading: {
+          levels: [1, 2, 3],
+        },
       }),
       Collaboration.configure({ document: ydoc }),
       Placeholder.configure({
@@ -101,6 +161,8 @@ function TiptapEditor({
       KanbanBlockExtension.configure({ projectId }),
       CommentMarkExtension,
       GitHubIssueNode.configure({ repo: githubRepo ?? null }),
+      // ✅ CHANGE 3: Added Highlight to the extensions array (was imported but unused)
+      Highlight.configure({ multicolor: false }),
     ],
     editable: !readOnly,
     editorProps: {
@@ -264,6 +326,8 @@ function TiptapEditor({
 
   return (
     <>
+      {/* ✅ CHANGE 4: Toolbar rendered above EditorContent, hidden in readOnly mode */}
+      {!readOnly && <EditorToolbar editor={editor} />}
       <EditorContent editor={editor} style={{ width: '100%' }} />
       {editor && !readOnly && onOpenBrain && (
         <SlashMenu

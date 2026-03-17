@@ -629,3 +629,10 @@ a {
 #editor-content {
   scrollbar-width: none;
 }
+/* Tiptap highlight — match Helix teal */
+.tiptap mark {
+  background-color: rgba(0, 212, 161, 0.25);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}

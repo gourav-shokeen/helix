@@ -172,49 +172,78 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
             <div dangerouslySetInnerHTML={{ __html: svg }} style={{ cursor: 'grab' }} />
           )}
         </div>
+
         {(hovered || selected) && (
           <>
+            {/* ✅ Close button — Helix-styled, no hardcoded colors */}
             <button
               onClick={deleteNode}
               contentEditable={false}
+              title="Remove diagram"
               style={{
                 position: 'absolute',
-                top: '8px',
-                right: '8px',
-                width: '26px',
-                height: '26px',
-                background: '#2a2a30',
-                border: '1px solid #4a4a55',
-                borderRadius: '50%',
-                color: '#ffffff',
+                top: '10px',
+                right: '10px',
+                width: '24px',
+                height: '24px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '4px',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
-                fontSize: '18px',
+                fontSize: '14px',
+                fontFamily: 'JetBrains Mono, monospace',
                 fontWeight: 400,
-                lineHeight: '24px',
-                textAlign: 'center',
+                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 zIndex: 20,
                 padding: 0,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.6)',
+                transition: 'color 0.15s ease, border-color 0.15s ease',
+              }}
+              onMouseEnter={e => {
+                const b = e.currentTarget
+                b.style.color = 'var(--red)'
+                b.style.borderColor = 'var(--red)'
+              }}
+              onMouseLeave={e => {
+                const b = e.currentTarget
+                b.style.color = 'var(--text-muted)'
+                b.style.borderColor = 'var(--border-light)'
               }}
             >
               ✕
             </button>
+
+            {/* ✅ Reset View button — Helix-styled */}
             <button
               onClick={resetView}
               contentEditable={false}
               style={{
                 position: 'absolute',
-                bottom: '8px',
-                right: '8px',
-                padding: '4px 10px',
-                background: '#2a2a30',
-                border: '1px solid #4a4a55',
+                bottom: '10px',
+                right: '10px',
+                padding: '3px 10px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border-light)',
                 borderRadius: '4px',
-                color: '#ffffff',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 fontSize: '10px',
+                fontFamily: 'JetBrains Mono, monospace',
                 zIndex: 20,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.6)',
+                transition: 'color 0.15s ease, border-color 0.15s ease',
+              }}
+              onMouseEnter={e => {
+                const b = e.currentTarget
+                b.style.color = 'var(--accent)'
+                b.style.borderColor = 'var(--accent)'
+              }}
+              onMouseLeave={e => {
+                const b = e.currentTarget
+                b.style.color = 'var(--text-muted)'
+                b.style.borderColor = 'var(--border-light)'
               }}
             >
               Reset View

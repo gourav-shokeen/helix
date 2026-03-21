@@ -11,7 +11,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
-  // Initialize Mermaid globally once (PROMPT 2)
   useEffect(() => {
     const initMermaid = async () => {
       const mermaid = (await import('mermaid')).default

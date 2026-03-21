@@ -23,7 +23,10 @@ function KanbanNodeView({ node, extension }: NodeViewProps) {
 
   return (
     <NodeViewWrapper>
-      <div style={{ minHeight: 300, maxHeight: 320, overflowY: 'auto' }}>
+      <div
+        style={{ minHeight: 300, maxHeight: 320, overflowY: 'auto' }}
+        onWheelCapture={(e) => e.stopPropagation()}
+      >
         <KanbanBoard boardId={boardId} projectId={projectId} compact />
       </div>
     </NodeViewWrapper>

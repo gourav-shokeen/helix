@@ -6,6 +6,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { ProfileDropdown } from '@/components/ui/ProfileDropdown'
 import { APP_NAME, CURSOR_COLORS } from '@/lib/constants'
+import { useTypewriter } from '@/hooks/useTypewriter'
 import type { User } from '@/types'
 
 interface TopBarProps {
@@ -45,6 +46,11 @@ export function TopBar({
   const [exportOpen, setExportOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const exportRef = useRef<HTMLDivElement>(null)
+  const { displayText: logoText } = useTypewriter(
+    APP_NAME.toLowerCase(),
+    1000,
+    20000
+  )
 
   useEffect(() => {
     if (!exportOpen) return
@@ -74,10 +80,31 @@ export function TopBar({
         zIndex: 10,
       }}
     >
+      {/* ── Logo — clicks to dashboard ── */}
       <span
-        style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '15px', letterSpacing: '-0.02em', flexShrink: 0 }}
+        onClick={() => router.push('/dashboard')}
+        title="Go to dashboard"
+        style={{
+          fontWeight: 700,
+          fontSize: '15px',
+          letterSpacing: '-0.02em',
+          flexShrink: 0,
+          display: 'inline-flex',
+          alignItems: 'baseline',
+          gap: 0,
+          cursor: 'pointer',
+        }}
       >
-        {APP_NAME}
+        <span style={{ color: 'var(--text-secondary)' }}>~/</span>
+        <span style={{ color: 'var(--accent)' }}>{logoText}</span>
+        <span
+          style={{
+            color: 'var(--accent)',
+            animation: 'blink 1s step-end infinite',
+            marginLeft: '1px',
+            userSelect: 'none',
+          }}
+        >|</span>
       </span>
 
       <button

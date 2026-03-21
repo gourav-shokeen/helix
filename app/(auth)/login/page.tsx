@@ -3,6 +3,21 @@
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME, APP_TAGLINE } from '@/lib/constants'
 
+const CODE_LINES = [
+  'const doc = await helix.create()',
+  '// real-time collaboration',
+  'import { Editor } from "@helix"',
+  'await provider.connect(docId)',
+  'type User = { id: string; name: string }',
+  '// Plan. Code. Collaborate.',
+  'const board = new KanbanBoard()',
+  'export default function Editor()',
+  'await supabase.from("docs").select()',
+  'provider.awareness.setLocalState()',
+  'const ydoc = new Y.Doc()',
+  'mermaid.initialize({ theme: "dark" })',
+]
+
 export default function LoginPage() {
   const handleGoogleLogin = async () => {
     const supabase = createClient()
@@ -23,28 +38,154 @@ export default function LoginPage() {
         justifyContent: 'center',
         background: 'var(--bg)',
         fontFamily: 'JetBrains Mono, monospace',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+
+      {/* ── Scrolling code lines background ── */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      >
+        {CODE_LINES.map((line, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              top: `${(i / CODE_LINES.length) * 100}%`,
+              left: 0,
+              right: 0,
+              padding: '0 2rem',
+              fontSize: '11px',
+              color: 'var(--accent)',
+              opacity: 0.045 + (i % 3) * 0.02,
+              whiteSpace: 'nowrap',
+              animation: `codeScroll ${18 + i * 2.1}s linear ${i * -1.5}s infinite`,
+            }}
+          >
+            {line}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Scanline sweep ── */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '2px',
+          background: 'var(--accent)',
+          opacity: 0.12,
+          zIndex: 1,
+          animation: 'scanline 6s linear infinite',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* ── Vignette corners ── */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'radial-gradient(ellipse at center, transparent 40%, var(--bg) 100%)',
+          zIndex: 1,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* ── Login card ── */}
       <div
         className="helix-fade-in"
         style={{
-          textAlign: 'center',
-          padding: '3rem',
-          border: '1px solid var(--border)',
-          borderRadius: '8px',
-          background: 'var(--surface)',
-          width: '380px',
+          position: 'relative',
+          zIndex: 2,
+          width: '360px',
           maxWidth: '90vw',
+          background: 'var(--surface)',
+          border: '1px solid var(--border-light)',
+          borderRadius: '10px',
+          padding: '36px 32px 28px',
+          textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: '40px', marginBottom: '0.5rem' }}>⬡</div>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--accent)', marginBottom: '0.25rem' }}>
-          {APP_NAME}
+        {/* icon */}
+        <div
+          style={{
+            width: '42px',
+            height: '42px',
+            border: '2px solid var(--accent)',
+            borderRadius: '8px',
+            margin: '0 auto 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: '14px',
+              height: '14px',
+              background: 'var(--accent)',
+              borderRadius: '3px',
+            }}
+          />
+        </div>
+
+        {/* logo */}
+        <h1
+          style={{
+            fontSize: '26px',
+            fontWeight: 800,
+            letterSpacing: '-0.03em',
+            marginBottom: '6px',
+            lineHeight: 1,
+          }}
+        >
+          <span style={{ color: 'var(--text-secondary)' }}>~/</span>
+          <span style={{ color: 'var(--accent)' }}>{APP_NAME.toLowerCase()}</span>
+          <span
+            style={{
+              color: 'var(--accent)',
+              animation: 'blink 1s step-end infinite',
+              marginLeft: '1px',
+            }}
+          >
+            |
+          </span>
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '2rem' }}>
+
+        <p
+          style={{
+            color: 'var(--text-muted)',
+            fontSize: '11px',
+            marginBottom: '28px',
+            letterSpacing: '0.02em',
+          }}
+        >
           {APP_TAGLINE}
         </p>
 
+        {/* divider */}
+        <div
+          style={{
+            height: '1px',
+            background: 'var(--border)',
+            marginBottom: '24px',
+          }}
+        />
+
+        {/* Google button */}
         <button
           onClick={handleGoogleLogin}
           style={{
@@ -54,7 +195,7 @@ export default function LoginPage() {
             border: 'none',
             borderRadius: '6px',
             color: 'var(--status-text)',
-            fontSize: '14px',
+            fontSize: '13px',
             fontWeight: 700,
             cursor: 'pointer',
             fontFamily: 'JetBrains Mono, monospace',
@@ -63,11 +204,12 @@ export default function LoginPage() {
             justifyContent: 'center',
             gap: '0.5rem',
             transition: 'opacity 0.15s',
+            letterSpacing: '0.01em',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
           onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -76,10 +218,29 @@ export default function LoginPage() {
           Continue with Google
         </button>
 
-        <p style={{ marginTop: '1.5rem', color: 'var(--text-muted)', fontSize: '10px', lineHeight: 1.5 }}>
-          By signing in you agree to share your workspace with collaborators you invite.
+        <p
+          style={{
+            marginTop: '20px',
+            color: 'var(--text-muted)',
+            fontSize: '10px',
+            lineHeight: 1.6,
+          }}
+        >
+          By signing in you agree to share your workspace<br />with collaborators you invite.
         </p>
       </div>
+
+      {/* ── Keyframes ── */}
+      <style>{`
+        @keyframes scanline {
+          0%   { transform: translateY(0); }
+          100% { transform: translateY(100vh); }
+        }
+        @keyframes codeScroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-60%); }
+        }
+      `}</style>
     </div>
   )
 }

@@ -56,6 +56,23 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
   const [newTitle, setNewTitle] = useState('')
   const [selectedCard, setSelectedCard] = useState<{ col: KanbanColumnKey; card: KanbanCardItem } | null>(null)
   const dragRef = useRef<{ cardId: string; fromCol: KanbanColumnKey } | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null) // ← ref for the scroll container
+
+  // ── Mouse wheel → horizontal scroll ──────────────────────────────────────
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      // only hijack when deltaY is dominant (pure vertical wheel)
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault()
+        el.scrollLeft += e.deltaY
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+  // ─────────────────────────────────────────────────────────────────────────
 
   const mergeData = useCallback((raw: unknown): KanbanBoardData => {
     if (!raw || typeof raw !== 'object') return defaultBoardData()
@@ -71,10 +88,6 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
     }
   }, [])
 
-  // ✅ FIX: removed `updated_at` from the update payload.
-  // If that column doesn't exist in project_boards, Supabase silently drops
-  // the entire update, meaning cards appear in UI (local state) but are never
-  // written to the database — so the DOCX export sees empty columns.
   const persistBoard = useCallback(async (next: KanbanBoardData) => {
     setBoardData(next)
     onDataChange?.(next)
@@ -198,7 +211,10 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
   }
 
   return (
-    <div style={{ display: 'flex', gap: '0.9rem', overflowX: 'auto', minHeight: compact ? 300 : 420, paddingBottom: '0.5rem' }}>
+    <div
+      ref={scrollRef} // ← attach ref here
+      style={{ display: 'flex', gap: '0.9rem', overflowX: 'auto', minHeight: compact ? 300 : 420, paddingBottom: '0.5rem' }}
+    >
       {COLUMN_CONFIG.map(({ key, title }) => (
         <Column
           key={key}

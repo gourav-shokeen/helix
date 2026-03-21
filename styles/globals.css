@@ -636,3 +636,177 @@ a {
   border-radius: 2px;
   padding: 0 2px;
 }
+/* ─────────────────────────────────────────────
+   POLISH ADDITIONS — paste at bottom of globals.css
+   Original teal theme — no token changes
+───────────────────────────────────────────── */
+
+/* ─── [1] Topbar & Toolbar background lift ─── */
+/* Give the topbar/toolbar a surface-level bg so they
+   visually separate from the editor content area */
+.topbar {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.toolbar-row {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* If your toolbar uses a different class, add it here.
+   Common patterns — uncomment whichever matches yours: */
+/* [data-toolbar], .editor-toolbar, .format-bar {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+} */
+
+
+/* ─── [2] Sidebar active doc — left accent bar ─── */
+/* Add a visible left accent on the active sidebar item */
+.sidebar-item--active,
+.doc-item--active,
+[data-active="true"] {
+  background: var(--accent-dim) !important;
+  border-left: 2px solid var(--accent) !important;
+  padding-left: calc(0.5rem - 2px) !important; /* compensate for border width */
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+}
+
+/* Ensure non-active items have no left border bleed */
+.sidebar-item,
+.doc-item {
+  border-left: 2px solid transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.sidebar-item:hover,
+.doc-item:hover {
+  background: var(--surface-hover);
+  border-left: 2px solid var(--border-light);
+}
+
+
+/* ─── [3] Right panel — section headers & separators ─── */
+/* Lift the muted labels up to secondary text color,
+   add a thin top separator between sections */
+.right-panel-section + .right-panel-section,
+.panel-section + .panel-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Section label (ONLINE, POMODORO etc.) */
+.right-panel-label,
+.panel-label,
+.section-label {
+  color: var(--text-secondary) !important;
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  margin-bottom: 0.4rem !important;
+}
+
+
+/* ─── [4] Editor content max-width + centering ─── */
+/* Caps the prose content at a comfortable reading width
+   and centers it — biggest readability improvement */
+.tiptap-editor,
+.ProseMirror {
+  max-width: 680px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+}
+
+/* The editor scroll container itself should still be full width */
+#editor-content,
+.editor-scroll-area,
+.editor-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+
+/* ─── [5] Statusbar — visual save state indicator ─── */
+/* The save status dot: green when saved, amber when pending */
+.save-status::before {
+  content: '●';
+  font-size: 0.55rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  color: var(--accent); /* green = saved */
+  transition: color 0.2s ease;
+}
+
+.save-status--unsaved::before {
+  color: var(--yellow); /* amber = unsaved changes */
+}
+
+.save-status--saving::before {
+  color: var(--text-muted);
+  animation: blink 1s step-end infinite;
+}
+
+/* If your statusbar uses inline text like "● saved",
+   just add the class save-status to that element.
+   For the unsaved state add save-status--unsaved too. */
+
+
+/* ─── [9] Dashboard — table row hover state ─── */
+.doc-row,
+.document-row,
+.table-row,
+tbody tr {
+  transition: background 0.1s ease;
+  cursor: pointer;
+}
+
+.doc-row:hover,
+.document-row:hover,
+.table-row:hover,
+tbody tr:hover {
+  background: var(--surface-hover) !important;
+}
+
+/* Subtle left accent on row hover to reinforce clickability */
+.doc-row,
+.document-row {
+  border-left: 2px solid transparent;
+}
+
+.doc-row:hover,
+.document-row:hover {
+  border-left: 2px solid var(--accent-mid);
+}
+.kanban-block {
+  overflow: visible;
+}
+ 
+.kanban-columns {
+  overflow-x: auto;
+  overflow-y: visible;
+  /* Prevent scroll from being eaten by parent */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── Typewriter cursor blink (logo) ─── */
+@keyframes helix-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+/* ─── Mermaid node fills → black ─── */
+/* ─── Mermaid node fills → dark surface ─── */
+.mermaid-block svg rect,
+.mermaid-block svg polygon,
+.mermaid-block svg circle,
+.mermaid-block svg ellipse {
+  fill: #1a1a1e !important;
+  stroke: #2e2e36 !important;
+}

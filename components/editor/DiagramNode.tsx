@@ -5,6 +5,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getMermaidConfig, fixSvgColors, fixSvgString } from '@/lib/mermaidTheme'
 import React from 'react'
 
+function getDiagramHeight(dsl: string): number {
+  const t = dsl.trimStart()
+  if (t.startsWith('erDiagram')) return 560
+  if (t.startsWith('gantt')) return 320
+  if (t.startsWith('sequenceDiagram')) return 480
+  return 400
+}
+
 function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
   const [svg, setSvg] = useState('')
   const [error, setError] = useState('')
@@ -22,6 +30,8 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
   const hasUserInteracted = useRef(false)
   const resetTimeoutRef = useRef<number | null>(null)
   const resetRafRef = useRef<number | null>(null)
+
+  const diagramHeight = getDiagramHeight(dsl)
 
   const applyTransform = useCallback((s: number) => {
     if (!containerRef.current) return
@@ -107,7 +117,6 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
     return () => cancelAnimationFrame(raf)
   }, [svg, fitToView, applyTransform])
 
-  // ✅ Wheel events on the diagram container are blocked so the page scrolls normally
   useEffect(() => {
     const el = wrapperRef.current
     if (!el) return
@@ -161,7 +170,7 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
           overflow: 'hidden',
           position: 'relative',
           background: 'var(--surface)',
-          height: '400px',
+          height: `${diagramHeight}px`,
           userSelect: 'none',
         }}
       >
@@ -175,7 +184,6 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
 
         {(hovered || selected) && (
           <>
-            {/* ✅ Close button — Helix-styled, no hardcoded colors */}
             <button
               onClick={deleteNode}
               contentEditable={false}
@@ -216,7 +224,6 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
               ✕
             </button>
 
-            {/* ✅ Reset View button — Helix-styled */}
             <button
               onClick={resetView}
               contentEditable={false}

@@ -327,6 +327,10 @@ export function DiagramModal({ onInsert, onClose, initialDsl, mode = 'insert' }:
       if (diagramType === 'Gantt') {
         svgEl.removeAttribute('width'); svgEl.removeAttribute('height')
         svgEl.style.height = 'auto'; svgEl.style.width = '100%'; svgEl.style.minWidth = '800px'
+        // FIX: container must be block + full-width so the SVG has room to expand
+        previewRef.current!.style.display = 'block'
+        previewRef.current!.style.width = '100%'
+        previewRef.current!.style.minWidth = '800px'
       } else if (diagramType === 'Sequence') {
         const w = parseFloat(svgEl.getAttribute('width') || '0')
         const h = parseFloat(svgEl.getAttribute('height') || '0')
@@ -334,10 +338,18 @@ export function DiagramModal({ onInsert, onClose, initialDsl, mode = 'insert' }:
         svgEl.removeAttribute('width'); svgEl.removeAttribute('height')
         svgEl.style.width = '100%'; svgEl.style.height = 'auto'
         svgEl.style.maxWidth = '100%'; svgEl.style.overflow = 'visible'
+        // Reset container for non-Gantt types
+        previewRef.current!.style.display = 'inline-block'
+        previewRef.current!.style.width = ''
+        previewRef.current!.style.minWidth = 'min-content'
       } else {
         svgEl.removeAttribute('width'); svgEl.removeAttribute('height')
         svgEl.style.height = 'auto'; svgEl.style.width = 'auto'
         svgEl.style.maxWidth = 'none'; svgEl.style.maxHeight = '420px'
+        // Reset container for non-Gantt types
+        previewRef.current!.style.display = 'inline-block'
+        previewRef.current!.style.width = ''
+        previewRef.current!.style.minWidth = 'min-content'
       }
       fixSvgColors(svgEl)
     })

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { SLASH_COMMANDS } from '@/lib/constants'
-import { useFocusStore } from '@/store/focusStore'
 import { createBoard, getBoard } from '@/lib/supabase/projects'
 import { defaultBoardData } from './KanbanBoard'
 
@@ -107,7 +106,6 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
 
   useEffect(() => {
     const handler = () => {
-      if (useFocusStore.getState().isFocused) { setVisible(false); return }
       const { from } = editor.state.selection
       const text = editor.state.doc.textBetween(Math.max(0, from - 20), from)
       const slashIdx = text.lastIndexOf('/')

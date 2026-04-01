@@ -1,8 +1,6 @@
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
-
-const ywsPath = new URL('./node_modules/y-websocket/bin/utils.cjs', import.meta.url)
-const { setupWSConnection } = await import(ywsPath.href)
+import { setupWSConnection } from 'y-websocket/bin/utils.cjs' // ✅ direct import
 
 const PORT = process.env.PORT || 1234
 const server = createServer()

@@ -77,7 +77,7 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
   const mergeData = useCallback((raw: unknown): KanbanBoardData => {
     if (!raw || typeof raw !== 'object') return defaultBoardData()
     const candidate = raw as Partial<KanbanBoardData>
-    const cols = candidate.columns ?? {}
+    const cols = (candidate.columns ?? {}) as { idea: any[], building: any[], testing: any[], done: any[] }
     return {
       columns: {
         idea: Array.isArray(cols.idea) ? cols.idea : [],

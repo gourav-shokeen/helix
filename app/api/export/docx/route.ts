@@ -40,7 +40,7 @@ function convertNode(node: any, extra?: { boards?: Record<string, any>; diagramI
   switch (node.type) {
 
     case 'heading': {
-      const levelMap: Record<number, HeadingLevel> = {
+      const levelMap: Record<number, typeof HeadingLevel[keyof typeof HeadingLevel]> = {
         1: HeadingLevel.HEADING_1,
         2: HeadingLevel.HEADING_2,
         3: HeadingLevel.HEADING_3,

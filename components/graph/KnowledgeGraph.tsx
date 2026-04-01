@@ -147,7 +147,7 @@ export function KnowledgeGraph({
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide(44))
 
-    simulationRef.current = simulation as ReturnType<D3Module['forceSimulation']>
+    simulationRef.current = simulation as unknown as ReturnType<D3Module['forceSimulation']>
 
     // Links
     const link = g.append('g')

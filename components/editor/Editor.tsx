@@ -139,6 +139,7 @@ function TiptapEditor({
       // ✅ CHANGE 2: Added heading levels to existing StarterKit config
       StarterKit.configure({
         codeBlock: false,
+        history: false,
         heading: {
           levels: [1, 2, 3],
         },
@@ -422,7 +423,6 @@ export function Editor({
         flex: 1,
         overflowY: 'auto',
         position: 'relative',
-        padding: '44px 60px',
         width: '100%',
         boxSizing: 'border-box',
         scrollbarWidth: 'none',

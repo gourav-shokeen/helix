@@ -114,7 +114,10 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
   const threadsBtnRight = threadsOpen ? `${284 + brainWidth}px` : `${4 + brainWidth}px`
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+    <div
+      className={threadsOpen ? 'threads-mobile-open' : ''}
+      style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}>
         <Editor
           documentId={documentId}
@@ -137,6 +140,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
       {/* Thread sidebar toggle */}
       <button
         onClick={() => setThreadsOpen((v) => !v)}
+        className="threads-toggle-btn"
         style={{
           position: 'absolute',
           right: threadsBtnRight,

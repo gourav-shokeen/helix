@@ -59,6 +59,8 @@ export default function DocPage() {
 
   const [saving, setSaving] = useState(false)
   const [currentDoc, setCurrentDoc] = useState<Document | null>(null)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [rightPanelOpen, setRightPanelOpen] = useState(false)
 
   const { isFocused, toggle: toggleFocusStore } = useFocusMode()
   const pomodoro = usePomodoro()
@@ -121,8 +123,14 @@ export default function DocPage() {
 
   const handleNewDoc = useCallback(async () => {
     if (!user) return
+    const input = window.prompt('Document name:')
+    if (input === null) return
+    const title = input.trim() || 'Untitled'
     const { data } = await createDocument(user.id)
-    if (data) router.push(`/doc/${data.id}`)
+    if (data) {
+      if (title !== 'Untitled') await updateDocumentTitle(data.id, title)
+      router.push(`/doc/${data.id}`)
+    }
   }, [user, router])
 
   const handleExportMd = useCallback(async () => {
@@ -266,7 +274,7 @@ export default function DocPage() {
   if (loading || !user) return null
 
   const sidebarWidth = isFocused ? 0 : 205
-  const rightPanelWidth = isFocused ? 0 : 185
+  const rightPanelWidth = isFocused ? 0 : rightPanelOpen ? 185 : 0
 
   return (
     <div
@@ -276,8 +284,10 @@ export default function DocPage() {
     >
       <TopBar
         docTitle={currentDoc?.title ?? 'Untitled'}
+        onMobileSidebarToggle={() => setMobileSidebarOpen((v) => !v)}
         onTitleChange={async (t) => {
           setCurrentDoc(prev => prev ? { ...prev, title: t } : prev)
+          setDocs(prev => prev.map(d => d.id === id ? { ...d, title: t } : d))
           if (currentDoc?.id) {
             setSaving(true)
             await updateDocumentTitle(currentDoc.id, t)
@@ -293,6 +303,8 @@ export default function DocPage() {
         onExportCsv={handleExportCsv}
         onGenerateReadme={handleGenerateReadme}
         onDeleteDoc={handleDeleteDoc}
+        onRightPanelToggle={() => setRightPanelOpen((v) => !v)}
+        rightPanelOpen={rightPanelOpen}
         showDoc
       />
 
@@ -300,11 +312,13 @@ export default function DocPage() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minWidth: 0 }}>
 
         {/* Sidebar */}
-        <div style={{ width: sidebarWidth, transition: 'width 0.3s ease', overflow: 'hidden', flexShrink: 0 }}>
+        <div className="sidebar-wrapper" style={{ width: sidebarWidth, transition: 'width 0.3s ease', overflow: 'hidden', flexShrink: 0 }}>
           <Sidebar
             docs={docs}
             activeDocId={id}
             onNewDoc={handleNewDoc}
+            mobileOpen={mobileSidebarOpen}
+            onMobileClose={() => setMobileSidebarOpen(false)}
           />
         </div>
 

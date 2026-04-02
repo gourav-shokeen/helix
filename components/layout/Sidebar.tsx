@@ -10,9 +10,11 @@ interface SidebarProps {
   onNewDoc: () => void
   githubRepo?: string | null
   onImportReadme?: () => void
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
-export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadme }: SidebarProps) {
+export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadme, mobileOpen = false, onMobileClose }: SidebarProps) {
   const router = useRouter()
 
   const [commits, setCommits] = useState<GitHubCommit[]>([])
@@ -44,18 +46,23 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
   }, [githubRepo, fetchCommits])
 
   return (
-    <aside
-      style={{
-        width: '205px',
-        height: '100%',
-        borderRight: '1px solid var(--border)',
-        background: 'var(--surface)',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        overflow: 'hidden',
-      }}
-    >
+    <>
+      <div
+        className={`sidebar-backdrop${mobileOpen ? ' is-open' : ''}`}
+        onClick={onMobileClose}
+      />
+      <aside
+        className={`helix-sidebar${mobileOpen ? ' is-open' : ''}`}
+        style={{
+          height: '100%',
+          borderRight: '1px solid var(--border)',
+          background: 'var(--surface)',
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0,
+          overflow: 'hidden',
+        }}
+      >
       {/* New doc button */}
       <div style={{ padding: '0.6rem 0.75rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '4px' }}>
         <button
@@ -212,6 +219,7 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
         </div>
       )}
     </aside>
+    </>
   )
 }
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { createDocument, getMyDocuments, deleteDocument } from '@/lib/supabase/documents'
+import { createDocument, getMyDocuments, deleteDocument, updateDocumentTitle } from '@/lib/supabase/documents'
 import { DocumentCard } from '@/components/ui/DocumentCard'
 import { TopBar } from '@/components/layout/TopBar'
 import type { Document } from '@/types'
@@ -32,16 +32,18 @@ export default function DashboardPage() {
 
   const handleNewDoc = useCallback(async () => {
     if (!user || creating) return
-    console.log('userId at click:', user.id)
+    const input = window.prompt('Document name:')
+    if (input === null) return
+    const title = input.trim() || 'Untitled'
     setCreating(true)
     setCreateError(null)
     const { data, error } = await createDocument(user.id, 'document')
     if (error || !data) {
-      console.error('createDocument error:', JSON.stringify(error, null, 2))
       setCreateError(`Failed to create document${error?.message ? `: ${error.message}` : '. Check console for details.'}`)
       setCreating(false)
       return
     }
+    if (title !== 'Untitled') await updateDocumentTitle(data.id, title)
     router.push(`/doc/${data.id}`)
   }, [user, router, creating])
 
@@ -103,10 +105,8 @@ export default function DashboardPage() {
 
         {/* Table header */}
         <div
+          className="dashboard-grid"
           style={{
-            display: 'grid',
-            gridTemplateColumns: '24px 1fr 120px 80px 32px',
-            gap: '0.75rem',
             padding: '0.4rem 1rem',
             borderBottom: '1px solid var(--border)',
             fontSize: '10px',
@@ -117,8 +117,8 @@ export default function DashboardPage() {
         >
           <span />
           <span>Title</span>
-          <span style={{ textAlign: 'right' }}>Last edited</span>
-          <span style={{ textAlign: 'right' }}>Type</span>
+          <span className="dashboard-col-date" style={{ textAlign: 'right' }}>Last edited</span>
+          <span className="dashboard-col-type" style={{ textAlign: 'right' }}>Type</span>
           <span />
         </div>
 

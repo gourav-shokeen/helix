@@ -122,7 +122,7 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
         if (rect.width === 0 && rect.height === 0) { setPos(null); return }
         setSelectedText(text)
         setPos({
-          top: rect.top - 40,
+          top: rect.bottom + 8,
           left: Math.max(8, rect.left + rect.width / 2 - 55),
         })
       }, 10)

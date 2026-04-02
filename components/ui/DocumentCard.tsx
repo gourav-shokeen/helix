@@ -18,12 +18,8 @@ export function DocumentCard({ doc, onClick, onDelete }: DocumentCardProps) {
   return (
     <div
       onClick={onClick}
-      className="helix-hover"
+      className={`helix-hover ${onDelete ? 'dashboard-grid' : 'dashboard-grid-no-delete'}`}
       style={{
-        display: 'grid',
-        gridTemplateColumns: onDelete ? '24px 1fr 120px 80px 32px' : '24px 1fr 120px 80px',
-        alignItems: 'center',
-        gap: '0.75rem',
         padding: '0.6rem 1rem',
         borderBottom: '1px solid var(--border)',
         cursor: 'pointer',
@@ -46,10 +42,10 @@ export function DocumentCard({ doc, onClick, onDelete }: DocumentCardProps) {
       >
         {doc.title || 'Untitled'}
       </span>
-      <span style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'right' }}>
+      <span className="dashboard-col-date" style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'right' }}>
         {formatRelativeDate(doc.updated_at)}
       </span>
-      <span style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'right' }}>
+      <span className="dashboard-col-type" style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'right' }}>
         {doc.type}
       </span>
       {onDelete && (

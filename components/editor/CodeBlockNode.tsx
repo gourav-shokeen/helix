@@ -125,30 +125,42 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     updateAttributes({ language: lang })
   }
 
+  const [running, setRunning] = useState(false)
+
   const handleRun = async () => {
     if (!RUNNABLE.includes(language)) {
       setOutput(`Execution not supported for ${language}`)
       return
     }
 
+    setRunning(true)
+    setOutput('Running...')
+
     if (language === 'python') {
-      setOutput('Initializing Python environment...')
       const result = await runPython(code)
       setOutput(result)
+      setRunning(false)
       return
     }
 
-    // JS/TS execution
+    // JS/TS: load via blob URL into hidden iframe
+    // allow-same-origin is mandatory — without it the browser refuses the blob URL
     const blob = new Blob([createRunnerHtml(code, language)], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
     blobUrlRef.current = url
-    if (iframeRef.current) iframeRef.current.src = url
+    if (iframeRef.current) {
+      iframeRef.current.src = url
+    }
+    // setRunning(false) happens in the message listener after output arrives
   }
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      if (e.data?.type === 'helix-run') setOutput(e.data.output || '(no output)')
+      if (e.data?.type === 'helix-run') {
+        setOutput(e.data.output || '(no output)')
+        setRunning(false)
+      }
     }
     window.addEventListener('message', onMsg)
     return () => {
@@ -162,11 +174,16 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
       <div
         style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '0.75em 0', background: 'var(--code-bg)', position: 'relative' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.6rem', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+        {/* contentEditable=false stops ProseMirror from placing the text cursor inside the toolbar */}
+        <div
+          contentEditable={false}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.6rem', borderBottom: '1px solid var(--border)', background: 'var(--surface)', cursor: 'default', userSelect: 'none' }}
+        >
           <select
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
-            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', outline: 'none', padding: '2px 4px' }}
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', outline: 'none', padding: '2px 4px', cursor: 'pointer' }}
           >
             {LANGUAGES.map((l) => (
               <option key={l} value={l}>{l}</option>
@@ -175,19 +192,23 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           <span style={{ flex: 1 }} />
           {RUNNABLE.includes(language) && (
             <button
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
               onClick={handleRun}
-              style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '3px', color: 'var(--accent)', cursor: 'pointer', fontSize: '10px', fontFamily: 'JetBrains Mono, monospace', padding: '2px 8px' }}
+              disabled={running}
+              style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '3px', color: 'var(--accent)', cursor: running ? 'wait' : 'pointer', fontSize: '10px', fontFamily: 'JetBrains Mono, monospace', padding: '2px 8px', opacity: running ? 0.6 : 1 }}
             >
-              ▶ Run
+              {running ? '◉ running' : '▶ Run'}
             </button>
           )}
           <button
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
             onClick={handleCopy}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: copied ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'JetBrains Mono, monospace', padding: '2px 8px' }}
           >
             {copied ? '✓ copied' : 'copy'}
           </button>
           <button
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
             onClick={deleteNode}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'JetBrains Mono, monospace', padding: '2px 8px' }}
           >
@@ -204,10 +225,22 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
         {output !== null && (
           <div style={{ padding: '0.5rem 0.75rem', borderTop: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--accent)', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>output › </span>{output}
-            <button onClick={() => setOutput(null)} style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px' }}>clear</button>
+            <button
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+              onClick={() => setOutput(null)}
+              style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px' }}
+            >
+              clear
+            </button>
           </div>
         )}
-        <iframe ref={iframeRef} style={{ display: 'none' }} sandbox="allow-scripts" title="helix-runner" />
+        {/* sandbox MUST include allow-same-origin — blob: URLs are blocked without it */}
+        <iframe
+          ref={iframeRef}
+          style={{ display: 'none', width: 0, height: 0, border: 'none' }}
+          sandbox="allow-scripts allow-same-origin"
+          title="helix-runner"
+        />
       </div>
     </NodeViewWrapper>
   )

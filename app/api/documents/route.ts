@@ -114,6 +114,8 @@ export async function POST(request: NextRequest) {
 }
 
 // PATCH /api/documents — update title and/or is_public
+// title: any member with owner OR editor role may update
+// is_public: only the document owner may toggle
 export async function PATCH(request: NextRequest) {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -127,10 +129,33 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    // Build update payload with only the provided fields
+    // Resolve the caller's role for this document
+    const { data: membership } = await supabaseAdmin
+        .from('document_members')
+        .select('role')
+        .eq('document_id', id)
+        .eq('user_id', session.user.id)
+        .single()
+
+    const role = membership?.role ?? null
+    if (!role) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Build update payload — owners can change anything, editors can only rename
     const updates: Record<string, unknown> = {}
-    if (title !== undefined) updates.title = title.trim()
-    if (is_public !== undefined) updates.is_public = Boolean(is_public)
+    if (title !== undefined) {
+        if (role !== 'owner' && role !== 'editor') {
+            return NextResponse.json({ error: 'Forbidden: only owner or editor can rename' }, { status: 403 })
+        }
+        updates.title = title.trim()
+    }
+    if (is_public !== undefined) {
+        if (role !== 'owner') {
+            return NextResponse.json({ error: 'Forbidden: only owner can change visibility' }, { status: 403 })
+        }
+        updates.is_public = Boolean(is_public)
+    }
 
     if (Object.keys(updates).length === 0) {
         return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
@@ -140,7 +165,6 @@ export async function PATCH(request: NextRequest) {
         .from('documents')
         .update(updates)
         .eq('id', id)
-        .eq('owner_id', session.user.id) // ownership check
         .select()
         .single()
 

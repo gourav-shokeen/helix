@@ -1,55 +1,47 @@
 'use client'
 // hooks/useAuth.ts
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+// Wrapper around next-auth useSession that maps to our internal User type.
+// The Supabase client is no longer used for auth — it's DB-only.
+import { useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { useAuthStore } from '@/store/authStore'
+import { createClient } from '@/lib/supabase/client'
 import type { User } from '@/types'
 
 export function useAuth() {
+    const { data: session, status } = useSession()
     const { user, setUser } = useAuthStore()
-    const [loading, setLoading] = useState(true)
+
+    const loading = status === 'loading'
 
     useEffect(() => {
-        const supabase = createClient()
+        if (status === 'loading') return
 
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
-            if (session?.user) {
-                const u = session.user
-                const profile: User = {
-                    id: u.id,
-                    email: u.email ?? '',
-                    name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.email?.split('@')[0] ?? 'User',
-                    avatar_url: u.user_metadata?.avatar_url,
-                    created_at: u.created_at,
-                }
-                setUser(profile)
-                // Ensure a public.users row exists — the trigger may have missed if the
-                // schema was applied after this account was first created.
-                await supabase.from('profiles').upsert(
-                    { id: profile.id, email: profile.email, name: profile.name, avatar_url: profile.avatar_url ?? null },
-                    { onConflict: 'id' }
-                )
+        if (session?.user) {
+            const u = session.user
+            const profile: User = {
+                id: u.id,
+                email: u.email ?? '',
+                name: u.name ?? u.email?.split('@')[0] ?? 'User',
+                avatar_url: u.image ?? undefined,
+                created_at: new Date().toISOString(),
             }
-            setLoading(false)
-        })
+            setUser(profile)
 
-        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session?.user) {
-                const u = session.user
-                setUser({
-                    id: u.id,
-                    email: u.email ?? '',
-                    name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.email?.split('@')[0] ?? 'User',
-                    avatar_url: u.user_metadata?.avatar_url,
-                    created_at: u.created_at,
-                } as User)
-            } else {
-                setUser(null)
-            }
-        })
-
-        return () => listener.subscription.unsubscribe()
-    }, [setUser])
+            // Upsert into public.profiles so DB foreign keys remain valid.
+            // The Supabase adapter creates a row in its own `users` table; this
+            // ensures our custom `profiles` table is in sync.
+            const supabase = createClient()
+            supabase.from('profiles').upsert(
+                { id: profile.id, email: profile.email, name: profile.name, avatar_url: profile.avatar_url ?? null },
+                { onConflict: 'id' }
+            ).then(({ error }) => {
+                if (error) console.warn('[useAuth] profiles upsert error:', error.message)
+            })
+        } else {
+            setUser(null)
+        }
+    }, [session, status, setUser])
 
     return { user, loading }
 }

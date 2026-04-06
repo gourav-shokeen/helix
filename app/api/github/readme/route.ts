@@ -1,5 +1,7 @@
 // app/api/github/readme/route.ts — Fetch raw README.md for a repo
 import { type NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getCached, setCached } from '@/lib/githubCache'
 
@@ -9,9 +11,10 @@ export async function GET(req: NextRequest) {
 
   if (!repo) return NextResponse.json({ error: 'Missing repo param' }, { status: 400 })
 
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = session.user
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: conn } = await supabase
     .from('github_connections')

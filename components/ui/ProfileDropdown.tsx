@@ -1,23 +1,19 @@
 'use client'
 // components/ui/ProfileDropdown.tsx
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { signOut } from 'next-auth/react'
 import { useAuthStore } from '@/store/authStore'
 import { Avatar } from './Avatar'
 
 export function ProfileDropdown() {
   const { user, clearUser } = useAuthStore()
   const [open, setOpen] = useState(false)
-  const router = useRouter()
 
   if (!user) return null
 
-  const signOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+  const handleSignOut = async () => {
     clearUser()
-    router.push('/login')
+    await signOut({ callbackUrl: '/login' })
   }
 
   return (
@@ -51,7 +47,7 @@ export function ProfileDropdown() {
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user.email}</div>
           </div>
           <button
-            onClick={signOut}
+            onClick={handleSignOut}
             style={{
               width: '100%',
               padding: '0.6rem 0.75rem',

@@ -1,15 +1,17 @@
 // app/api/comments/route.ts
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/auth'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const user = session.user
+    const supabase = await createClient()
 
     const body = await request.json()
     const { thread_id, body: commentBody } = body

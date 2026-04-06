@@ -1,6 +1,7 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from '@/components/ui/ThemeProvider'
+import { Providers } from '@/components/Providers'
 import '@/styles/globals.css'
 
 export const viewport: Viewport = {
@@ -21,7 +22,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <Providers>{children}</Providers>
+        </ThemeProvider>
       </body>
     </html>
   )

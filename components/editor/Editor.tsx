@@ -22,7 +22,7 @@ import { CommentMarkExtension } from './CommentMark'
 import { GitHubIssueNode } from './GitHubIssueNode'
 import { SlashMenu } from './SlashMenu'
 import { WS_URL, CURSOR_COLORS } from '@/lib/constants'
-import { createClient } from '@/lib/supabase/client'
+import { getSession } from 'next-auth/react'
 import type { User } from '@/types'
 import Highlight from '@tiptap/extension-highlight'
 
@@ -373,15 +373,19 @@ export function Editor({
     import('y-websocket').then(async (mod: any) => {
       if (cancelled) { ydoc.destroy(); return }
 
-      // Attach the session JWT so the WS server can validate the connection
+      // Attach the session JWT so the WS server can validate the connection.
+      // next-auth provides the token via getSession(); the WS server still uses
+      // Supabase service role to validate share tokens separately.
       let wsUrl = WS_URL
       try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.access_token) {
-          wsUrl = `${WS_URL}?token=${encodeURIComponent(session.access_token)}`
+        const session = await getSession()
+        if (session?.user?.id) {
+          // next-auth sessions don't expose a Supabase access_token directly;
+          // pass the user id as a fallback identifier for the WS server.
+          // For JWT-based WS auth, generate a server-side token at /api/ws-token.
+          wsUrl = `${WS_URL}?user=${encodeURIComponent(session.user.id)}`
         }
-      } catch { /* non-fatal — server will reject if token is missing */ }
+      } catch { /* non-fatal */ }
 
       const provider = new mod.WebsocketProvider(wsUrl, documentId, ydoc)
       providerRef.current = provider

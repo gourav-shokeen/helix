@@ -1,5 +1,7 @@
 // app/api/github/issue/route.ts — Fetch a single GitHub issue
 import { type NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getCached, setCached } from '@/lib/githubCache'
 
@@ -10,9 +12,10 @@ export async function GET(req: NextRequest) {
 
   if (!repo || !issue) return NextResponse.json({ error: 'Missing repo or issue param' }, { status: 400 })
 
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = session.user
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: conn } = await supabase
     .from('github_connections')

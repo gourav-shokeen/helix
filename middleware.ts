@@ -1,57 +1,48 @@
 // middleware.ts
-import { NextResponse, type NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+// Auth guard: uses next-auth v4 withAuth helper.
+// Supabase is not touched here — it is DB-only now.
+import { withAuth } from 'next-auth/middleware'
+import { NextResponse } from 'next/server'
 
-const PROTECTED = ['/dashboard', '/doc', '/graph', '/journal', '/projects', '/devlog']
+export default withAuth(
+    function middleware(req) {
+        const { pathname } = req.nextUrl
+        const token = req.nextauth.token
 
-export async function middleware(request: NextRequest) {
-    let supabaseResponse = NextResponse.next({ request })
-
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                getAll() {
-                    return request.cookies.getAll()
-                },
-                setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value }) =>
-                        request.cookies.set(name, value)
-                    )
-                    supabaseResponse = NextResponse.next({ request })
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        supabaseResponse.cookies.set(name, value, options)
-                    )
-                },
-            },
+        // Redirect authenticated users away from /login and /
+        if ((pathname === '/login' || pathname === '/') && token) {
+            return NextResponse.redirect(new URL('/dashboard', req.url))
         }
-    )
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+        return NextResponse.next()
+    },
+    {
+        callbacks: {
+            // Return true → allow; false → redirect to sign-in page (configured in authOptions.pages)
+            authorized({ token, req }) {
+                const { pathname } = req.nextUrl
+                const PROTECTED = ['/dashboard', '/doc', '/graph', '/journal', '/projects', '/devlog']
 
-    const { pathname } = request.nextUrl
+                // Public API routes (next-auth callbacks) are always allowed
+                if (pathname.startsWith('/api/auth')) return true
 
-    // Public API routes — skip auth enforcement (handled inside each route)
-    if (pathname.startsWith('/api/auth')) {
-        return supabaseResponse
+                // Public pages
+                if (pathname === '/' || pathname === '/login') return true
+
+                // Share pages are public — auth is optional there
+                if (pathname.startsWith('/share')) return true
+
+                // Protected pages require a session token
+                const isProtected = PROTECTED.some((p) => pathname.startsWith(p))
+                if (isProtected) return !!token
+
+                // All other paths (including API routes): allow but let the route
+                // handler call getServerSession() to enforce auth if needed
+                return true
+            },
+        },
     }
-
-    // Redirect unauthenticated users away from protected routes
-    const isProtected = PROTECTED.some((p) => pathname.startsWith(p))
-    if (isProtected && !user) {
-        return NextResponse.redirect(new URL('/login', request.url))
-    }
-
-    // Redirect authenticated users away from /login and /
-    if ((pathname === '/login' || pathname === '/') && user) {
-        return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
-
-    return supabaseResponse
-}
+)
 
 export const config = {
     matcher: [

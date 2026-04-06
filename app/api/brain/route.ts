@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { BrainMode } from '@/types'
 
@@ -39,9 +41,8 @@ ${content}`,
 
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const session = await getServerSession(authOptions)
+        if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const { mode, content } = (await request.json()) as { mode: BrainMode; content: string }
 

@@ -1,12 +1,15 @@
 // app/api/github/repos/route.ts — Return the authenticated user's GitHub repos
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getCached, setCached } from '@/lib/githubCache'
 
 export async function GET() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = session.user
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Fetch stored PAT
   const { data: conn } = await supabase

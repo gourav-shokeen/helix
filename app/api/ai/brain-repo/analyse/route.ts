@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import type { BrainFile } from '@/store/brainStore'
 
@@ -146,9 +148,10 @@ Return only the summary text, no JSON, no headings.`
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const user = session.user
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { data: conn } = await supabase
       .from('github_connections')

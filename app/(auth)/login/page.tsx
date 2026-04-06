@@ -1,6 +1,6 @@
 'use client'
 // app/(auth)/login/page.tsx
-import { createClient } from '@/lib/supabase/client'
+import { signIn } from 'next-auth/react'
 import { APP_NAME, APP_TAGLINE } from '@/lib/constants'
 
 const CODE_LINES = [
@@ -19,20 +19,8 @@ const CODE_LINES = [
 ]
 
 export default function LoginPage() {
-  const handleGoogleLogin = async () => {
-    const supabase = createClient()
-    // NEXT_PUBLIC_APP_URL must be set to https://helixx.me in Vercel env vars.
-    // This ensures the Google OAuth consent screen shows helixx.me, not a raw
-    // Supabase URL. Falls back to window.location.origin for local dev only.
-    const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
-      window.location.origin
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${appUrl}/auth/callback`,
-      },
-    })
+  const handleGoogleLogin = () => {
+    signIn('google', { callbackUrl: '/dashboard' })
   }
 
   return (

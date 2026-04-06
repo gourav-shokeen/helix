@@ -2,6 +2,8 @@
 // Handles both token-based share links AND legacy public doc links
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/auth'
 import { createClient } from '@/lib/supabase/server'
 import { GuestEditor } from '@/components/editor/GuestEditor'
 import type { Document } from '@/types'
@@ -55,7 +57,8 @@ export default async function SharePage({ params }: Props) {
     .single()
 
   if (link) {
-    const { data: { user } } = await supabase.auth.getUser()
+    const session = await getServerSession(authOptions)
+    const user = session?.user ?? null
 
     if (link.permission === 'edit') {
       if (user) {

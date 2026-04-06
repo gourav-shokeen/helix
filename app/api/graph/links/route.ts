@@ -1,5 +1,7 @@
 // app/api/graph/links/route.ts — Extract wiki-link edges from all user documents
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/auth'
 import { createClient } from '@/lib/supabase/server'
 import * as Y from 'yjs'
 
@@ -30,9 +32,10 @@ function extractText(node: Y.XmlFragment | Y.XmlElement): string {
 }
 
 export async function GET() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = session.user
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: docs } = await supabase
     .from('documents')

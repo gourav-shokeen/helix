@@ -3,6 +3,7 @@
 // Allows users to connect a GitHub PAT and link a repo to the current document.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { createClient } from '@/lib/supabase/client'
 
 interface GitHubSettingsModalProps {
@@ -13,6 +14,7 @@ interface GitHubSettingsModalProps {
 }
 
 export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }: GitHubSettingsModalProps) {
+  const { data: session } = useSession()
   const supabase = createClient()
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -26,8 +28,9 @@ export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }
 
   // Load existing connection
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return
+    if (!session?.user) return
+    const user = session.user
+    ;(async () => {
       const { data } = await supabase
         .from('github_connections')
         .select('github_username')
@@ -38,9 +41,9 @@ export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }
         setConnected(true)
         loadRepos()
       }
-    })
+    })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [session])
 
   const loadRepos = useCallback(async () => {
     const res = await fetch('/api/github/repos')
@@ -65,7 +68,7 @@ export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }
       }
       const ghUser = await checkRes.json() as { login: string }
 
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = { data: { user: session?.user ?? null } }
       if (!user) return
 
       await supabase.from('github_connections').upsert({
@@ -85,7 +88,7 @@ export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }
   }
 
   const handleDisconnect = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = session?.user
     if (!user) return
     await supabase.from('github_connections').delete().eq('user_id', user.id)
     setConnected(false)

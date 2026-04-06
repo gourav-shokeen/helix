@@ -45,3 +45,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 ws-server/node_modules
+
+.vscode/
+.idea/
+Thumbs.db
+*.key
+*.p12
+*.p8

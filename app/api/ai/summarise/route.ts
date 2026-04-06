@@ -1,8 +1,8 @@
+// app/api/ai/summarise/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
-import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {

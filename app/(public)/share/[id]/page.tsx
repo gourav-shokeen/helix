@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
-import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { GuestEditor } from '@/components/editor/GuestEditor'
 import type { Document } from '@/types'
 
@@ -16,17 +16,16 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://helix.app'
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const supabase = await createClient()
 
   // Try token lookup first
-  const { data: link } = await supabase
+  const { data: link } = await supabaseAdmin
     .from('share_links')
     .select('doc_id')
     .eq('token', id)
     .single()
 
   const docId = link?.doc_id ?? id
-  const { data } = await supabase.from('documents').select('title').eq('id', docId).single()
+  const { data } = await supabaseAdmin.from('documents').select('title').eq('id', docId).single()
 
   const title = data?.title ?? 'Shared Document'
   const description = `Read "${title}" — a shared document on Helix, the AI-powered collaborative note editor.`
@@ -47,10 +46,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SharePage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
 
   // ── Try token-based share link first ──
-  const { data: link } = await supabase
+  const { data: link } = await supabaseAdmin
     .from('share_links')
     .select('doc_id, permission')
     .eq('token', id)
@@ -66,7 +64,7 @@ export default async function SharePage({ params }: Props) {
         redirect(`/doc/${link.doc_id}`)
       }
       // Not logged in → guest collaborative editor authenticated via share token
-      const title = await getDocTitle(supabase, link.doc_id)
+      const title = await getDocTitle(link.doc_id)
       return (
         <GuestEditor
           docId={link.doc_id}
@@ -78,12 +76,12 @@ export default async function SharePage({ params }: Props) {
     }
 
     // View-only token link → show read-only page
-    const title = await getDocTitle(supabase, link.doc_id)
+    const title = await getDocTitle(link.doc_id)
     return <ReadOnlyView docId={link.doc_id} title={title} permission="view" />
   }
 
   // ── Fallback: legacy public doc link (id = doc uuid) ──
-  const { data: doc } = await supabase
+  const { data: doc } = await supabaseAdmin
     .from('documents')
     .select('*')
     .eq('id', id)
@@ -98,8 +96,8 @@ export default async function SharePage({ params }: Props) {
 
 // ── Helpers ──────────────────────────────────────────────
 
-async function getDocTitle(supabase: any, docId: string): Promise<string> {
-  const { data } = await supabase.from('documents').select('title').eq('id', docId).single()
+async function getDocTitle(docId: string): Promise<string> {
+  const { data } = await supabaseAdmin.from('documents').select('title').eq('id', docId).single()
   return data?.title ?? 'Untitled'
 }
 

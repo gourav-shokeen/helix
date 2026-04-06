@@ -2,7 +2,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
-import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getCached, setCached } from '@/lib/githubCache'
 
 export async function GET(req: NextRequest) {
@@ -15,9 +15,8 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const user = session.user
-  const supabase = await createClient()
 
-  const { data: conn } = await supabase
+  const { data: conn } = await supabaseAdmin
     .from('github_connections')
     .select('token')
     .eq('user_id', user.id)

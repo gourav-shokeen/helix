@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { createDocument, getMyDocuments, deleteDocument, updateDocumentTitle } from '@/lib/supabase/documents'
 import { DocumentCard } from '@/components/ui/DocumentCard'
 import { TopBar } from '@/components/layout/TopBar'
 import type { Document } from '@/types'
@@ -24,10 +23,13 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return
     setFetching(true)
-    getMyDocuments(user.id).then(({ data }) => {
-      setDocs((data as Document[]) ?? [])
-      setFetching(false)
-    })
+    fetch('/api/documents?type=document')
+      .then((r) => r.json())
+      .then(({ documents }) => {
+        setDocs((documents as Document[]) ?? [])
+        setFetching(false)
+      })
+      .catch(() => setFetching(false))
   }, [user])
 
   const handleNewDoc = useCallback(async () => {
@@ -37,19 +39,29 @@ export default function DashboardPage() {
     const title = input.trim() || 'Untitled'
     setCreating(true)
     setCreateError(null)
-    const { data, error } = await createDocument(user.id, 'document')
-    if (error || !data) {
-      setCreateError(`Failed to create document${error?.message ? `: ${error.message}` : '. Check console for details.'}`)
+    try {
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, type: 'document' }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.document) {
+        setCreateError(`Failed to create document: ${json.error ?? 'Unknown error'}`)
+        setCreating(false)
+        return
+      }
+      router.push(`/doc/${json.document.id}`)
+    } catch (err) {
+      setCreateError('Failed to create document. Check console for details.')
+      console.error('[dashboard] createDocument error:', err)
       setCreating(false)
-      return
     }
-    if (title !== 'Untitled') await updateDocumentTitle(data.id, title)
-    router.push(`/doc/${data.id}`)
   }, [user, router, creating])
 
   const handleDelete = useCallback(async (docId: string, title: string) => {
     if (!confirm(`Delete "${title || 'Untitled'}"? This cannot be undone.`)) return
-    await deleteDocument(docId)
+    await fetch(`/api/documents?id=${docId}`, { method: 'DELETE' })
     setDocs((prev) => prev.filter((d) => d.id !== docId))
   }, [])
 

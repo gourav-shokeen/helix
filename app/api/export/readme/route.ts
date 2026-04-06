@@ -1,8 +1,8 @@
+// app/api/export/readme/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
-import { createClient } from '@/lib/supabase/server'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 

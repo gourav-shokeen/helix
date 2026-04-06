@@ -2,7 +2,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
-import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getCached, setCached } from '@/lib/githubCache'
 
 export async function GET(req: NextRequest) {
@@ -14,9 +14,8 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const user = session.user
-  const supabase = await createClient()
 
-  const { data: conn } = await supabase
+  const { data: conn } = await supabaseAdmin
     .from('github_connections')
     .select('token')
     .eq('user_id', user.id)
@@ -38,9 +37,8 @@ export async function GET(req: NextRequest) {
   if (!res.ok) return NextResponse.json({ error: 'README not found or API error' }, { status: res.status })
 
   const raw = await res.json() as { content: string; encoding: string; name: string }
-  // GitHub returns base64-encoded content
   const markdown = Buffer.from(raw.content.replace(/\n/g, ''), 'base64').toString('utf-8')
   const result = { markdown, filename: raw.name }
-  setCached(cacheKey, result, 10 * 60 * 1000) // 10-min TTL for README
+  setCached(cacheKey, result, 10 * 60 * 1000)
   return NextResponse.json(result)
 }

@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePomodoro } from '@/hooks/usePomodoro'
 import { useFocusMode } from '@/hooks/useFocusMode'
 import { usePresence } from '@/hooks/usePresence'
-import { getDocument, getMyDocuments, deleteDocument, createDocument, updateDocumentTitle } from '@/lib/supabase/documents'
+import { getDocument } from '@/lib/supabase/documents'
 import { getBoardById } from '@/lib/supabase/projects'
 import { downloadFile } from '@/lib/utils'
 import { renderDiagramsForExport } from '@/lib/diagramExport'  // ✅ NEW
@@ -104,7 +104,9 @@ export default function DocPage() {
 
   useEffect(() => {
     if (!user) return
-    getMyDocuments(user.id).then(({ data }) => setDocs((data as Document[]) ?? []))
+    fetch('/api/documents?type=document')
+      .then((r) => r.json())
+      .then(({ documents }) => setDocs((documents as Document[]) ?? []))
   }, [user])
 
   useEffect(() => {
@@ -126,10 +128,14 @@ export default function DocPage() {
     const input = window.prompt('Document name:')
     if (input === null) return
     const title = input.trim() || 'Untitled'
-    const { data } = await createDocument(user.id)
-    if (data) {
-      if (title !== 'Untitled') await updateDocumentTitle(data.id, title)
-      router.push(`/doc/${data.id}`)
+    const res = await fetch('/api/documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, type: 'document' }),
+    })
+    const json = await res.json()
+    if (json.document) {
+      router.push(`/doc/${json.document.id}`)
     }
   }, [user, router])
 
@@ -267,7 +273,7 @@ export default function DocPage() {
   const handleDeleteDoc = useCallback(async () => {
     if (!id) return
     if (!confirm(`Delete "${currentDoc?.title || 'Untitled'}"? This cannot be undone.`)) return
-    await deleteDocument(id)
+    await fetch(`/api/documents?id=${id}`, { method: 'DELETE' })
     router.push('/dashboard')
   }, [id, currentDoc, router])
 
@@ -290,7 +296,11 @@ export default function DocPage() {
           setDocs(prev => prev.map(d => d.id === id ? { ...d, title: t } : d))
           if (currentDoc?.id) {
             setSaving(true)
-            await updateDocumentTitle(currentDoc.id, t)
+            await fetch('/api/documents', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: currentDoc?.id, title: t }),
+            })
             setSaving(false)
           }
         }}

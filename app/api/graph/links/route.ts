@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
-import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import * as Y from 'yjs'
 
 function toUint8Array(data: unknown): Uint8Array | null {
@@ -10,9 +10,7 @@ function toUint8Array(data: unknown): Uint8Array | null {
   if (data instanceof Uint8Array) return data
   if (Buffer.isBuffer(data)) return new Uint8Array(data)
   if (typeof data === 'string') {
-    // Postgres hex bytea: \x1a2b3c...
     if (data.startsWith('\\x')) return new Uint8Array(Buffer.from(data.slice(2), 'hex'))
-    // PostgREST base64
     return new Uint8Array(Buffer.from(data, 'base64'))
   }
   if (Array.isArray(data)) return new Uint8Array(data as number[])
@@ -35,16 +33,14 @@ export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const user = session.user
-  const supabase = await createClient()
 
-  const { data: docs } = await supabase
+  const { data: docs } = await supabaseAdmin
     .from('documents')
     .select('id, title')
     .eq('owner_id', user.id)
 
   if (!docs?.length) return NextResponse.json({ edges: [], excerpts: {} })
 
-  // Build title → id lookup (case-insensitive)
   const titleToId = new Map<string, string>()
   docs.forEach((d) => titleToId.set((d.title ?? '').toLowerCase().trim(), d.id))
 
@@ -53,7 +49,7 @@ export async function GET() {
   const excerpts: Record<string, string> = {}
 
   for (const doc of docs) {
-    const { data: updates } = await supabase
+    const { data: updates } = await supabaseAdmin
       .from('document_updates')
       .select('update_data')
       .eq('document_id', doc.id)
@@ -69,13 +65,11 @@ export async function GET() {
         if (bin) Y.applyUpdate(ydoc, bin)
       }
 
-      // Try default Tiptap fragment names
       let text = extractText(ydoc.getXmlFragment('prosemirror'))
       if (!text.trim()) text = extractText(ydoc.getXmlFragment('default'))
 
       if (text.trim()) excerpts[doc.id] = text.trim().slice(0, 200)
 
-      // Parse [[wiki-link]] patterns
       const wikiMatches = Array.from(text.matchAll(/\[\[([^\]\n]+)\]\]/g))
       for (const match of wikiMatches) {
         const linkedTitle = match[1].toLowerCase().trim()

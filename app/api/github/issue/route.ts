@@ -2,22 +2,21 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
-import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getCached, setCached } from '@/lib/githubCache'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const repo = searchParams.get('repo')   // e.g. "owner/reponame"
-  const issue = searchParams.get('issue') // e.g. "42"
+  const repo = searchParams.get('repo')
+  const issue = searchParams.get('issue')
 
   if (!repo || !issue) return NextResponse.json({ error: 'Missing repo or issue param' }, { status: 400 })
 
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const user = session.user
-  const supabase = await createClient()
 
-  const { data: conn } = await supabase
+  const { data: conn } = await supabaseAdmin
     .from('github_connections')
     .select('token')
     .eq('user_id', user.id)

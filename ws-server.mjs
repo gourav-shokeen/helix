@@ -13,17 +13,25 @@ function getDoc(docName) {
   return docs.get(docName)
 }
 
-// ── Auth path 1: Supabase JWT (authenticated users) ──────────────────────────
+// ── Auth path 1: next-auth session token (authenticated users) ───────────────
+// The WS client passes the next-auth session token cookie value as ?token=
+// We validate it by calling the next-auth session endpoint on the app server.
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+
 async function validateJwt(token) {
-  if (!token || !SUPABASE_URL || !SUPABASE_ANON_KEY) return false
+  if (!token) return false
   try {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    const res = await fetch(`${NEXTAUTH_URL}/api/auth/session`, {
       headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: SUPABASE_ANON_KEY,
+        // next-auth reads the session cookie; we pass the raw session token
+        // using the __Secure- or default cookie name depending on environment.
+        Cookie: `next-auth.session-token=${token}; __Secure-next-auth.session-token=${token}`,
       },
     })
-    return res.ok
+    if (!res.ok) return false
+    const json = await res.json()
+    // A valid session returns { user: { id, email, ... }, expires: '...' }
+    return !!(json?.user?.id)
   } catch {
     return false
   }

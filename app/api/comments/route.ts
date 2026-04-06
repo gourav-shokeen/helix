@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
-import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +11,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const user = session.user
-    const supabase = await createClient()
 
     const body = await request.json()
     const { thread_id, body: commentBody } = body
@@ -20,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing thread_id or comment body' }, { status: 400 })
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('comments')
       .insert({ 
         thread_id, 
@@ -35,10 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Failed to create comment: ${error.message}` }, { status: 500 })
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      comment: data 
-    })
+    return NextResponse.json({ success: true, comment: data })
   } catch (err) {
     console.error('[API] /api/comments error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

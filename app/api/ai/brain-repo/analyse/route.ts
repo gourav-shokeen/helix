@@ -1,7 +1,7 @@
+import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import type { BrainFile } from '@/store/brainStore'
 
-// Increase Vercel timeout to 120s for large repos
 export const maxDuration = 120
 
 const CODE_EXTENSIONS = new Set([
@@ -23,11 +23,10 @@ const IGNORED_FOLDERS = new Set([
   '.cache', 'coverage', '.turbo', 'out', '.vercel',
 ])
 
-// Groq free tier: 30 RPM, 14,400 req/day — safe at 1 req/3s
 const BATCH_SIZE = 3
 const RATE_LIMIT_DELAY_MS = 15000
 const MAX_CONTENT_CHARS = 800
-const MAX_FILES = 60 // per file, to stay within context
+const MAX_FILES = 60
 
 function getExtension(path: string): string {
   const lastDot = path.lastIndexOf('.')
@@ -100,7 +99,6 @@ ${fileList}`
   const data = await res.json()
   const raw = data.choices?.[0]?.message?.content ?? ''
 
-  // Strip any accidental markdown fences
   const clean = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
 
   try {
@@ -148,6 +146,18 @@ Return only the summary text, no JSON, no headings.`
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { data: conn } = await supabase
+      .from('github_connections')
+      .select('token')
+      .eq('user_id', user.id)
+      .single()
+
+    const githubToken = conn?.token ?? null
+
     const { owner, repo, folders } = await req.json()
     const apiKey = process.env.GROQ_API_KEY
 
@@ -158,10 +168,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing owner, repo, or folders' }, { status: 400 })
     }
 
-    // 1. Fetch full tree
+    const treeHeaders: HeadersInit = {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'Helix-Brain/1.0',
+      ...(githubToken ? { Authorization: `token ${githubToken}` } : {}),
+    }
+
     const treeRes = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`,
-      { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Helix-Brain/1.0' } }
+      { headers: treeHeaders }
     )
 
     if (!treeRes.ok) {
@@ -172,22 +187,16 @@ export async function POST(req: NextRequest) {
     const selectedFolders = new Set<string>(folders)
     const includeRoot = selectedFolders.has('(root files)')
 
-    // 2. Filter to selected folders + relevant extensions
     const filteredPaths: string[] = treeData.tree
       .filter((item: any) => {
         if (item.type !== 'blob') return false
-
         const filename = item.path.split('/').pop() ?? ''
         if (IGNORED_FILES.has(filename)) return false
-
         const ext = getExtension(item.path)
         if (!CODE_EXTENSIONS.has(ext)) return false
-
         const parts = item.path.split('/')
         const topFolder = parts[0]
-
         if (IGNORED_FOLDERS.has(topFolder)) return false
-
         if (parts.length === 1) return includeRoot
         return selectedFolders.has(topFolder)
       })
@@ -198,7 +207,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No analysable files found in selected folders' }, { status: 400 })
     }
 
-    // 3. Fetch file contents in parallel (batched for concurrency control)
     const FETCH_CONCURRENCY = 8
     const filesWithContent: Array<{ path: string; content: string }> = []
 
@@ -210,7 +218,6 @@ export async function POST(req: NextRequest) {
       filesWithContent.push(...results.filter(f => f.content.trim().length > 0))
     }
 
-    // 4. Analyse in batches (respect Groq rate limits)
     const allBrainFiles: BrainFile[] = []
 
     for (let i = 0; i < filesWithContent.length; i += BATCH_SIZE) {
@@ -218,13 +225,11 @@ export async function POST(req: NextRequest) {
       const results = await analyseBatch(batch, apiKey)
       allBrainFiles.push(...results)
 
-      // Rate limit delay between batches (skip after last batch)
       if (i + BATCH_SIZE < filesWithContent.length) {
         await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY_MS))
       }
     }
 
-    // 5. Generate project summary
     const summary = await generateSummary(allBrainFiles, apiKey)
 
     return NextResponse.json({ fileMap: allBrainFiles, summary })

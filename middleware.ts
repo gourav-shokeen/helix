@@ -2,7 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const PROTECTED = ['/dashboard', '/doc', '/graph', '/journal']
+const PROTECTED = ['/dashboard', '/doc', '/graph', '/journal', '/projects', '/devlog']
 
 export async function middleware(request: NextRequest) {
     let supabaseResponse = NextResponse.next({ request })
@@ -34,6 +34,11 @@ export async function middleware(request: NextRequest) {
 
     const { pathname } = request.nextUrl
 
+    // Public API routes — skip auth enforcement (handled inside each route)
+    if (pathname.startsWith('/api/auth')) {
+        return supabaseResponse
+    }
+
     // Redirect unauthenticated users away from protected routes
     const isProtected = PROTECTED.some((p) => pathname.startsWith(p))
     if (isProtected && !user) {
@@ -50,6 +55,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
     matcher: [
-        '/((?!_next/static|_next/image|favicon.ico|api/).*)',
+        '/((?!_next/static|_next/image|favicon.ico).*)',
     ],
 }

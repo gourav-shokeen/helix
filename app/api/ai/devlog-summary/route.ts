@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { requireAuth } from '@/lib/auth/requireAuth'
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth()
+    if (authResult instanceof NextResponse) return authResult
+
     const { commits } = (await request.json()) as { commits?: string }
     const input = String(commits || '').trim()
 

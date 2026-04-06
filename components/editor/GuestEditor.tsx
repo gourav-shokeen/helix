@@ -1,5 +1,7 @@
 'use client'
-// components/editor/GuestEditor.tsx — Read-only / guest-edit view for share link tokens
+// components/editor/GuestEditor.tsx — Collaborative guest-edit view for share link tokens.
+// Receives the share token so it can authenticate with the WS server.
+// View-only guests do NOT connect to the WS server — they see a static message.
 import { useEffect, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -12,6 +14,8 @@ interface GuestEditorProps {
   docId: string
   docTitle: string
   permission: 'view' | 'edit'
+  /** The raw share token UUID from the URL — used to authenticate with the WS server. */
+  shareToken: string
 }
 
 /** Generate a short random guest name + color */
@@ -22,22 +26,32 @@ function guestIdentity() {
   return { name: `Guest-${id}`, color }
 }
 
-export function GuestEditor({ docId, docTitle, permission }: GuestEditorProps) {
+export function GuestEditor({ docId, docTitle, permission, shareToken }: GuestEditorProps) {
   const ydocRef = useRef<Y.Doc | null>(null)
   const providerRef = useRef<any>(null)
   const [synced, setSynced] = useState(false)
   const { name: guestName, color: guestColor } = useRef(guestIdentity()).current
 
-  // Initialise Yjs + WebSocket provider
+  const isReadOnly = permission === 'view'
+
+  // View-only guests do NOT connect to the WS server.
+  // The share page renders a static RSC view for them — this branch is
+  // only reached if GuestEditor is somehow mounted with permission='view',
+  // which should not happen. Guard here for safety.
   useEffect(() => {
+    if (isReadOnly) return
+
     const ydoc = new Y.Doc()
     ydocRef.current = ydoc
 
-    // Dynamically import WebsocketProvider to avoid SSR issues
     let provider: any
     ;(async () => {
       const { WebsocketProvider } = await import('y-websocket')
-      provider = new WebsocketProvider(WS_URL, docId, ydoc, { connect: true })
+
+      // Append share_token so the WS server can validate this guest connection.
+      // The server will reject with 4001 (invalid/expired) or 4003 (view-only).
+      const wsUrl = `${WS_URL}?share_token=${encodeURIComponent(shareToken)}`
+      provider = new WebsocketProvider(wsUrl, docId, ydoc, { connect: true })
       providerRef.current = provider
 
       // Set guest awareness
@@ -53,12 +67,11 @@ export function GuestEditor({ docId, docTitle, permission }: GuestEditorProps) {
 
     return () => {
       provider?.destroy()
-      ydoc.destroy()
+      ydocRef.current?.destroy()
+      ydocRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docId])
-
-  const isReadOnly = permission === 'view'
+  }, [docId, shareToken])
 
   const editor = useEditor(
     {
@@ -102,14 +115,19 @@ export function GuestEditor({ docId, docTitle, permission }: GuestEditorProps) {
 
       {/* Body */}
       <div style={{ maxWidth: '860px', margin: '0 auto', padding: '44px 60px' }}>
-        {!synced ? (
+        {isReadOnly ? (
+          // View-only: static message — no WS, no Yjs
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+            This is a read-only shared view. <a href="/login" style={{ color: 'var(--accent)' }}>Sign in to Helix</a> to collaborate.
+          </p>
+        ) : !synced ? (
           <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Connecting to document…</div>
         ) : (
           <EditorContent editor={editor} />
         )}
       </div>
 
-      {/* Guest info bar */}
+      {/* Guest info bar — edit mode only */}
       {!isReadOnly && (
         <div style={{ position: 'fixed', bottom: '1rem', left: '50%', transform: 'translateX(-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.4rem 0.85rem', fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: guestColor, flexShrink: 0 }} />

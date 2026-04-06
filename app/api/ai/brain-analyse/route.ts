@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { requireAuth } from '@/lib/auth/requireAuth'
 
 function parseJsonObject(text: string) {
   try {
@@ -17,6 +18,9 @@ function parseJsonObject(text: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth()
+    if (authResult instanceof NextResponse) return authResult
+
     const { pastedContent } = (await request.json()) as { pastedContent?: string }
     const content = String(pastedContent || '').trim()
 

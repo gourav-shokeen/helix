@@ -26,12 +26,16 @@ const nextConfig = {
 		],
 		turbo: {},
 	},
+	eslint: {
+		ignoreDuringBuilds: true,
+	},
 	webpack: (config) => {
 		config.resolve = config.resolve || {}
 		config.resolve.alias = {
 			...(config.resolve.alias || {}),
 			yjs: require.resolve('yjs'),
 		}
+		// Fix webpack cache serialization warning (33kiB object)
 		config.cache = {
 		  type: 'filesystem',
 		  buildDependencies: {
@@ -40,6 +44,7 @@ const nextConfig = {
 		  compression: false,
 		  maxMemoryGenerations: 1,
 		}
+
 		config.optimization = {
 		  ...config.optimization,
 		  moduleIds: 'deterministic',

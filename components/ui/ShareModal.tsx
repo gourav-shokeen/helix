@@ -1,7 +1,6 @@
 'use client'
 // components/ui/ShareModal.tsx
 import { useState } from 'react'
-import { makeDocumentPublic } from '@/lib/supabase/documents'
 import { useAuthStore } from '@/store/authStore'
 
 interface ShareModalProps {
@@ -28,7 +27,11 @@ export function ShareModal({ docId, isPublic, onClose }: ShareModalProps) {
   const togglePublic = async () => {
     setPubLoading(true)
     const next = !pub
-    await makeDocumentPublic(docId, next)
+    await fetch('/api/documents', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: docId, is_public: next }),
+    })
     setPub(next)
     setPubLoading(false)
   }

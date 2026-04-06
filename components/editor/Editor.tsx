@@ -373,21 +373,25 @@ export function Editor({
     import('y-websocket').then(async (mod: any) => {
       if (cancelled) { ydoc.destroy(); return }
 
-      // Attach the session JWT so the WS server can validate the connection.
-      // next-auth provides the token via getSession(); the WS server still uses
-      // Supabase service role to validate share tokens separately.
-      let wsUrl = WS_URL
+      // The user ID is passed via y-websocket's `params` option, NOT by
+      // appending a query string to the base WS_URL. y-websocket builds the
+      // final URL as: serverUrl + '/' + roomname + '?' + params
+      // If we append ?user=xxx to serverUrl BEFORE y-websocket adds the room
+      // name, the URL becomes malformed (ws://host?user=xxx/room-id) and the
+      // server's URL parser sees pathname='/' → falls back to room 'default'.
+      const wsParams: Record<string, string> = {}
       try {
         const session = await getSession()
         if (session?.user?.id) {
-          // next-auth sessions don't expose a Supabase access_token directly;
-          // pass the user id as a fallback identifier for the WS server.
-          // For JWT-based WS auth, generate a server-side token at /api/ws-token.
-          wsUrl = `${WS_URL}?user=${encodeURIComponent(session.user.id)}`
+          wsParams.user = session.user.id
         }
       } catch { /* non-fatal */ }
 
-      const provider = new mod.WebsocketProvider(wsUrl, documentId, ydoc)
+      // Room name = documentId → unique isolated room per document.
+      // y-websocket final URL: ws://host:1234/<documentId>?user=<userId>
+      const provider = new mod.WebsocketProvider(WS_URL, documentId, ydoc, {
+        params: wsParams,
+      })
       providerRef.current = provider
 
       const color = CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)]

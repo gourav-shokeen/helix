@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { TopBar } from '@/components/layout/TopBar'
-import { getMyDocuments } from '@/lib/supabase/documents'
+
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -167,10 +167,12 @@ export default function DevLogPage() {
       setSidebarLoading(false)
     })
 
-    void getMyDocuments(user.id).then(({ data }) => {
-      const options = (data || []).map((doc) => ({ id: String(doc.id), title: String(doc.title || 'Untitled') }))
-      setProjects(options)
-    })
+    void fetch('/api/documents?type=document')
+      .then((r) => r.json())
+      .then(({ documents }) => {
+        const options = ((documents as Array<{ id: string; title: string }>) || []).map((doc) => ({ id: String(doc.id), title: String(doc.title || 'Untitled') }))
+        setProjects(options)
+      })
   }, [user?.id, setEntries])
 
   useEffect(() => {

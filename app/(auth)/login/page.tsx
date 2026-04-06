@@ -1,6 +1,7 @@
 'use client'
 // app/(auth)/login/page.tsx
 import { signIn } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { APP_NAME, APP_TAGLINE } from '@/lib/constants'
 
 const CODE_LINES = [
@@ -19,8 +20,11 @@ const CODE_LINES = [
 ]
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard'
+
   const handleGoogleLogin = () => {
-    signIn('google', { callbackUrl: '/dashboard' })
+    signIn('google', { callbackUrl })
   }
 
   return (

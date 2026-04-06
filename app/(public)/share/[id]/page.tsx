@@ -1,11 +1,11 @@
 // app/(public)/share/[id]/page.tsx
-// Handles both token-based share links AND legacy public doc links
+// Requires authentication. Unauthenticated users are redirected to /login.
+// After login, next-auth redirects back to this page via callbackUrl.
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { GuestEditor } from '@/components/editor/GuestEditor'
 import type { Document } from '@/types'
 
 interface Props {
@@ -17,7 +17,6 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://helix.app'
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
 
-  // Try token lookup first
   const { data: link } = await supabaseAdmin
     .from('share_links')
     .select('doc_id')
@@ -47,7 +46,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function SharePage({ params }: Props) {
   const { id } = await params
 
-  // ── Try token-based share link first ──
+  // ── Auth gate — redirect to login if not signed in ──
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    redirect(`/login?callbackUrl=/share/${id}`)
+  }
+
+  // ── Resolve share token ──
   const { data: link } = await supabaseAdmin
     .from('share_links')
     .select('doc_id, permission')
@@ -55,29 +60,26 @@ export default async function SharePage({ params }: Props) {
     .single()
 
   if (link) {
-    const session = await getServerSession(authOptions)
-    const user = session?.user ?? null
+    const userId = session.user.id
+    const role = link.permission === 'edit' ? 'editor' : 'viewer'
 
-    if (link.permission === 'edit') {
-      if (user) {
-        // Logged-in user with edit permission → send them straight to the real editor
-        redirect(`/doc/${link.doc_id}`)
-      }
-      // Not logged in → guest collaborative editor authenticated via share token
-      const title = await getDocTitle(link.doc_id)
-      return (
-        <GuestEditor
-          docId={link.doc_id}
-          docTitle={title}
-          permission="edit"
-          shareToken={id}
-        />
+    // Upsert the visiting user into document_members so the doc page
+    // can load for users who aren't the owner. Idempotent — safe to
+    // repeat if they visit the share link multiple times.
+    const { error: memberError } = await supabaseAdmin
+      .from('document_members')
+      .upsert(
+        { document_id: link.doc_id, user_id: userId, role },
+        { onConflict: 'document_id,user_id' }
       )
+
+    if (memberError) {
+      console.error('[share] Failed to upsert document_member:', memberError.message)
     }
 
-    // View-only token link → show read-only page
-    const title = await getDocTitle(link.doc_id)
-    return <ReadOnlyView docId={link.doc_id} title={title} permission="view" />
+    // Redirect to the real editor regardless of permission level.
+    // The doc page will enforce read-only rendering for viewer role.
+    redirect(`/doc/${link.doc_id}`)
   }
 
   // ── Fallback: legacy public doc link (id = doc uuid) ──
@@ -91,7 +93,7 @@ export default async function SharePage({ params }: Props) {
     return <PrivateDoc />
   }
 
-  return <ReadOnlyView docId={id} title={(doc as Document).title} permission="view" />
+  return <ReadOnlyView docId={id} title={(doc as Document).title} />
 }
 
 // ── Helpers ──────────────────────────────────────────────
@@ -108,33 +110,14 @@ function PrivateDoc() {
     <div style={fullCenterStyle}>
       <div style={{ fontSize: 32, marginBottom: 16 }}>🔒</div>
       <p style={{ margin: 0, color: '#888', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
-        This document is private.
+        This document is private or the link is invalid.
       </p>
-      <a href="/login" style={accentBtnStyle}>Open in Helix</a>
+      <a href="/dashboard" style={accentBtnStyle}>Go to dashboard</a>
     </div>
   )
 }
 
-function SignInPrompt({ token, title }: { token: string; title: string }) {
-  return (
-    <div style={fullCenterStyle}>
-      <div style={{
-        textAlign: 'center', fontFamily: 'JetBrains Mono, monospace',
-        background: '#141416', border: '1px solid #242428',
-        borderRadius: 8, padding: '36px 44px', maxWidth: 360,
-      }}>
-        <div style={{ fontSize: 28, marginBottom: 16 }}>✏</div>
-        <div style={{ color: '#e8e8ec', fontSize: 14, marginBottom: 8, fontWeight: 600 }}>{title}</div>
-        <div style={{ color: '#55556a', fontSize: 12, marginBottom: 24 }}>
-          Sign in to edit this document.
-        </div>
-        <a href={`/login?next=/share/${token}`} style={accentBtnStyle}>Sign in to edit</a>
-      </div>
-    </div>
-  )
-}
-
-function ReadOnlyView({ docId, title, permission }: { docId: string; title: string; permission: string }) {
+function ReadOnlyView({ docId, title }: { docId: string; title: string }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#0d0d1a', fontFamily: 'JetBrains Mono, monospace', color: '#e0e0e0' }}>
       {/* Header */}
@@ -145,7 +128,7 @@ function ReadOnlyView({ docId, title, permission }: { docId: string; title: stri
         <span style={{ marginLeft: 4, fontSize: 10, color: '#444', background: '#1a1a2e', border: '1px solid #2a2a3e', padding: '2px 6px', borderRadius: 3 }}>
           read-only
         </span>
-        <a href="/login" style={{ ...accentBtnStyle, marginLeft: 'auto', flexShrink: 0 }}>Open in Helix</a>
+        <a href="/dashboard" style={{ ...accentBtnStyle, marginLeft: 'auto', flexShrink: 0 }}>Open in Helix</a>
       </header>
 
       {/* Content */}
@@ -155,8 +138,8 @@ function ReadOnlyView({ docId, title, permission }: { docId: string; title: stri
         </h1>
         <p style={{ color: '#555', fontSize: 13, lineHeight: 1.7 }}>
           This is a read-only shared view.{' '}
-          <a href="/login" style={{ color: '#00d4a1', textDecoration: 'none' }}>Sign in to Helix</a>{' '}
-          to collaborate on this document.
+          <a href="/dashboard" style={{ color: '#00d4a1', textDecoration: 'none' }}>Open Helix</a>{' '}
+          to collaborate on documents.
         </p>
       </main>
 

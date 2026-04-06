@@ -1,11 +1,16 @@
 'use client'
 // hooks/usePresence.ts
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function usePresence(provider: any): User[] {
     const [users, setUsers] = useState<User[]>([])
+    // Tracks the last serialized user list — avoids returning a new array
+    // reference on every awareness ping (e.g. cursor move / keystroke).
+    // Without this guard every Yjs awareness update creates a new array →
+    // re-renders the parent → fires useEffects that depend on the result.
+    const prevRef = useRef('')
 
     useEffect(() => {
         if (!provider) return
@@ -23,6 +28,11 @@ export function usePresence(provider: any): User[] {
                     avatar_url: s.user!.avatar,
                     created_at: '',
                 }))
+
+            // Only update React state when the actual user list changed.
+            const key = JSON.stringify(online)
+            if (key === prevRef.current) return
+            prevRef.current = key
             setUsers(online)
         }
 

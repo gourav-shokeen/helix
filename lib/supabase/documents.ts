@@ -68,9 +68,12 @@ export async function getTodayJournal(userId: string) {
 }
 
 export async function getDocument(id: string) {
-    const supabase = createClient()
-    return supabase.from('documents').select('*').eq('id', id).single()
+    const res = await fetch(`/api/documents/${id}`)
+    if (!res.ok) return { data: null, error: 'Not found' }
+    const json = await res.json()
+    return { data: json.document ?? null, error: null }
 }
+
 
 export async function updateDocumentTitle(id: string, title: string) {
     const supabase = createClient()

@@ -6,7 +6,8 @@ import { useAuthStore } from '@/store/authStore'
 import { Avatar } from './Avatar'
 
 export function ProfileDropdown() {
-  const { user, clearUser } = useAuthStore()
+  const user = useAuthStore(state => state.user)
+  const clearUser = useAuthStore(state => state.clearUser)
   const [open, setOpen] = useState(false)
 
   if (!user) return null

@@ -6,5 +6,14 @@ import { SessionProvider } from 'next-auth/react'
 import type { ReactNode } from 'react'
 
 export function Providers({ children }: { children: ReactNode }) {
-    return <SessionProvider>{children}</SessionProvider>
+    // refetchInterval={0}          — disable automatic session polling
+    // refetchOnWindowFocus={false} — disable refetch when tab regains focus
+    // These defaults cause useSession() to return new object references on every
+    // poll/focus event, which can cascade through useMemo and cause render loops.
+    return (
+        <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
+            {children}
+        </SessionProvider>
+    )
 }
+

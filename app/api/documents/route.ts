@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ document: doc }, { status: 201 })
 }
 
-// PATCH /api/documents — update title
+// PATCH /api/documents — update title and/or is_public
 export async function PATCH(request: NextRequest) {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -121,15 +121,24 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, title } = body
+    const { id, title, is_public } = body
 
-    if (!id || !title?.trim()) {
-        return NextResponse.json({ error: 'Missing id or title' }, { status: 400 })
+    if (!id) {
+        return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+    }
+
+    // Build update payload with only the provided fields
+    const updates: Record<string, unknown> = {}
+    if (title !== undefined) updates.title = title.trim()
+    if (is_public !== undefined) updates.is_public = Boolean(is_public)
+
+    if (Object.keys(updates).length === 0) {
+        return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     }
 
     const { data, error } = await supabaseAdmin
         .from('documents')
-        .update({ title: title.trim() })
+        .update(updates)
         .eq('id', id)
         .eq('owner_id', session.user.id) // ownership check
         .select()

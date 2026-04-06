@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useThemeStore } from '@/store/themeStore'
 import { useFocusStore } from '@/store/focusStore'
-import { createDocument } from '@/lib/supabase/documents'
 import { useAuthStore } from '@/store/authStore'
 import { renderDiagramsForExport } from '@/lib/diagramExport'
 
@@ -22,7 +21,7 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ onClose, docId, docTitle }: CommandPaletteProps) {
-  const { user } = useAuthStore()
+  const user = useAuthStore(state => state.user)
   const toggleTheme = useThemeStore(state => state.toggleTheme)
   const { toggle: toggleFocus } = useFocusStore()
   const router = useRouter()
@@ -37,8 +36,13 @@ export function CommandPalette({ onClose, docId, docTitle }: CommandPaletteProps
       label: 'New Document',
       action: async () => {
         if (!user) return
-        const { data } = await createDocument(user.id)
-        if (data) router.push(`/doc/${data.id}`)
+        const res = await fetch('/api/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Untitled', type: 'document' }),
+        })
+        const json = await res.json()
+        if (json.document) router.push(`/doc/${json.document.id}`)
       },
     },
     { id: 'dashboard', icon: '▦', label: 'Go to Dashboard', action: () => router.push('/dashboard') },

@@ -102,12 +102,17 @@ export default function DocPage() {
     })
   }, [id])
 
+  // Ref guard: only fetch sidebar doc list once per unique user ID.
+  const lastSidebarFetchRef = useRef<string | null>(null)
+
   useEffect(() => {
-    if (!user) return
+    if (!user?.id) return
+    if (lastSidebarFetchRef.current === user.id) return
+    lastSidebarFetchRef.current = user.id
     fetch('/api/documents?type=document')
       .then((r) => r.json())
       .then(({ documents }) => setDocs((documents as Document[]) ?? []))
-  }, [user])
+  }, [user?.id])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

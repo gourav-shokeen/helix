@@ -1,6 +1,6 @@
 'use client'
 // app/(app)/dashboard/page.tsx
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { DocumentCard } from '@/components/ui/DocumentCard'
@@ -20,8 +20,15 @@ export default function DashboardPage() {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
 
+  // Ref guard: only fetch once per unique user ID.
+  // Prevents re-triggering even if React Strict Mode or session polling
+  // causes the effect to fire more than once with the same user.id.
+  const lastFetchedIdRef = useRef<string | null>(null)
+
   useEffect(() => {
-    if (!user) return
+    if (!user?.id) return
+    if (lastFetchedIdRef.current === user.id) return   // already fetched for this user
+    lastFetchedIdRef.current = user.id
     setFetching(true)
     fetch('/api/documents?type=document')
       .then((r) => r.json())
@@ -30,7 +37,7 @@ export default function DashboardPage() {
         setFetching(false)
       })
       .catch(() => setFetching(false))
-  }, [user])
+  }, [user?.id])
 
   const handleNewDoc = useCallback(async () => {
     if (!user || creating) return

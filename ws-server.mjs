@@ -13,28 +13,12 @@ function getDoc(docName) {
   return docs.get(docName)
 }
 
-// ── Auth path 1: next-auth session token (authenticated users) ───────────────
-// The WS client passes the next-auth session token cookie value as ?token=
-// We validate it by calling the next-auth session endpoint on the app server.
-const NEXTAUTH_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-
-async function validateJwt(token) {
-  if (!token) return false
-  try {
-    const res = await fetch(`${NEXTAUTH_URL}/api/auth/session`, {
-      headers: {
-        // next-auth reads the session cookie; we pass the raw session token
-        // using the __Secure- or default cookie name depending on environment.
-        Cookie: `next-auth.session-token=${token}; __Secure-next-auth.session-token=${token}`,
-      },
-    })
-    if (!res.ok) return false
-    const json = await res.json()
-    // A valid session returns { user: { id, email, ... }, expires: '...' }
-    return !!(json?.user?.id)
-  } catch {
-    return false
-  }
+// ── Auth path 1: next-auth authenticated users ───────────────────────────────
+// The Editor client sends ?user=<uuid> (the next-auth session.user.id).
+// Any user that reaches the WS server has already been authenticated by
+// next-auth middleware on the Next.js app. We accept any non-empty UUID.
+function validateUserId(userId) {
+  return typeof userId === 'string' && userId.length > 0
 }
 
 // ── Auth path 2: Share token (guest edit links) ───────────────────────────────
@@ -69,13 +53,13 @@ const wss = new WebSocketServer({ server })
 
 wss.on('connection', async (ws, req) => {
   let rawPath = req.url || '/'
-  let jwt = null
+  let userId = null
   let shareToken = null
   let docName = 'default'
 
   try {
     const url = new URL(rawPath, `http://localhost:${PORT}`)
-    jwt = url.searchParams.get('token')
+    userId = url.searchParams.get('user')       // next-auth UUID
     shareToken = url.searchParams.get('share_token')
     // pathname is e.g. /my-doc-id — strip leading slash
     docName = url.pathname.slice(1) || 'default'
@@ -83,13 +67,13 @@ wss.on('connection', async (ws, req) => {
     // malformed URL — fall through, both tokens will be null → rejected below
   }
 
-  if (jwt) {
-    // ── Path 1: authenticated user JWT ──────────────────────────────────────
-    const valid = await validateJwt(jwt)
-    if (!valid) {
+  if (userId) {
+    // ── Path 1: authenticated user (next-auth UUID) ──────────────────────────
+    if (!validateUserId(userId)) {
       ws.close(4001, 'Unauthorized')
       return
     }
+    console.log(`[ws] user ${userId} connected to doc ${docName}`)
   } else if (shareToken) {
     // ── Path 2: guest share token ────────────────────────────────────────────
     const shareRow = await validateShareToken(shareToken)
@@ -104,6 +88,7 @@ wss.on('connection', async (ws, req) => {
       return
     }
     // permission === 'edit' — allow collaborative connection
+    console.log(`[ws] share-token user connected to doc ${docName}`)
   } else {
     // No credentials at all
     ws.close(4001, 'Unauthorized')

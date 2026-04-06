@@ -4,6 +4,36 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const doc_id = request.nextUrl.searchParams.get('doc_id')
+    if (!doc_id) {
+      return NextResponse.json({ error: 'Missing doc_id' }, { status: 400 })
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('threads')
+      .select('*, comments(*)')
+      .eq('doc_id', doc_id)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('[threads GET]', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ threads: data ?? [] })
+  } catch (err) {
+    console.error('[API] /api/threads GET error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)

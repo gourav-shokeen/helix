@@ -1,6 +1,7 @@
 // app/api/export/docx/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/auth/requireAuth'
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   HeadingLevel, AlignmentType, LevelFormat, BorderStyle, WidthType, ShadingType,
@@ -180,7 +181,7 @@ function convertNode(node: any, extra?: { boards?: Record<string, any>; diagramI
 
       const COLUMN_ORDER = ['idea', 'building', 'testing', 'done']
       const rawColumns = boardData?.columns
-      console.log('[docx] rawColumns full:', JSON.stringify(rawColumns))
+      console.log('[docx] columns fetched:', rawColumns?.length ?? 0)
       const columns: { title: string; cards: { title: string }[] }[] = rawColumns
         ? Array.isArray(rawColumns)
           ? rawColumns
@@ -286,6 +287,9 @@ function convertNode(node: any, extra?: { boards?: Record<string, any>; diagramI
 // ── Route handler ────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth()
+    if (authResult instanceof NextResponse) return authResult
+
     const { content, title, documentId, diagramImages } = await req.json()
 
     const docTitle = title ?? 'Document'
@@ -301,7 +305,7 @@ export async function POST(req: NextRequest) {
           .from('project_boards')
           .select('*')
           .eq('project_id', documentId)
-        console.log('[docx] all boards:', rows?.length, 'error:', error)
+        console.log('[docx] boards fetched:', rows?.length ?? 0)
         if (rows?.length) {
           const best = rows.reduce((prev, curr) => {
             const countCards = (d: any) => {

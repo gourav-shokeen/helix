@@ -143,8 +143,10 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
       return
     }
 
-    // JS/TS: load via blob URL into hidden iframe
-    // allow-same-origin is mandatory — without it the browser refuses the blob URL
+    // JS/TS: load via blob URL into hidden iframe.
+    // Blob URLs created by createObjectURL are same-origin by definition,
+    // so allow-same-origin is NOT needed and must NOT be set — it would
+    // allow the sandboxed iframe to access parent cookies/localStorage.
     const blob = new Blob([createRunnerHtml(code, language)], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
@@ -234,11 +236,12 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
             </button>
           </div>
         )}
-        {/* sandbox MUST include allow-same-origin — blob: URLs are blocked without it */}
+        {/* sandbox: allow-scripts only — allow-same-origin is intentionally omitted
+             to prevent the iframe from accessing parent cookies or localStorage */}
         <iframe
           ref={iframeRef}
           style={{ display: 'none', width: 0, height: 0, border: 'none' }}
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-scripts"
           title="helix-runner"
         />
       </div>

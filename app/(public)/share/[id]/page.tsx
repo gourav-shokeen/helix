@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { GuestEditor } from '@/components/editor/GuestEditor'
 import type { Document } from '@/types'
 
 interface Props {
@@ -58,11 +59,19 @@ export default async function SharePage({ params }: Props) {
 
     if (link.permission === 'edit') {
       if (user) {
-        // Logged-in user with edit permission → send them straight to the doc
+        // Logged-in user with edit permission → send them straight to the real editor
         redirect(`/doc/${link.doc_id}`)
       }
-      // Not logged in → prompt sign-in
-      return <SignInPrompt token={id} title={await getDocTitle(supabase, link.doc_id)} />
+      // Not logged in → guest collaborative editor authenticated via share token
+      const title = await getDocTitle(supabase, link.doc_id)
+      return (
+        <GuestEditor
+          docId={link.doc_id}
+          docTitle={title}
+          permission="edit"
+          shareToken={id}
+        />
+      )
     }
 
     // View-only token link → show read-only page

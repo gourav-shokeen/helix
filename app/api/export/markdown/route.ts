@@ -1,5 +1,6 @@
 // app/api/export/markdown/route.ts — HTML → Markdown export
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth/requireAuth'
 
 function htmlToMarkdown(html: string): string {
     return html
@@ -31,6 +32,9 @@ function htmlToMarkdown(html: string): string {
 
 export async function POST(request: NextRequest) {
     try {
+        const authResult = await requireAuth()
+        if (authResult instanceof NextResponse) return authResult
+
         const { content, title } = (await request.json()) as { content: string; title?: string }
         const markdown = htmlToMarkdown(content ?? '')
         const filename = `${(title ?? 'document').replace(/\s+/g, '-').toLowerCase()}.md`

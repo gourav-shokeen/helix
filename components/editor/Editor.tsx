@@ -22,6 +22,7 @@ import { CommentMarkExtension } from './CommentMark'
 import { GitHubIssueNode } from './GitHubIssueNode'
 import { SlashMenu } from './SlashMenu'
 import { WS_URL, CURSOR_COLORS } from '@/lib/constants'
+import { createClient } from '@/lib/supabase/client'
 import type { User } from '@/types'
 import Highlight from '@tiptap/extension-highlight'
 
@@ -369,10 +370,20 @@ export function Editor({
     let syncHandler: ((synced: boolean) => void) | null = null
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null
 
-    import('y-websocket').then((mod: any) => {
+    import('y-websocket').then(async (mod: any) => {
       if (cancelled) { ydoc.destroy(); return }
 
-      const provider = new mod.WebsocketProvider(WS_URL, documentId, ydoc)
+      // Attach the session JWT so the WS server can validate the connection
+      let wsUrl = WS_URL
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          wsUrl = `${WS_URL}?token=${encodeURIComponent(session.access_token)}`
+        }
+      } catch { /* non-fatal — server will reject if token is missing */ }
+
+      const provider = new mod.WebsocketProvider(wsUrl, documentId, ydoc)
       providerRef.current = provider
 
       const color = CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)]

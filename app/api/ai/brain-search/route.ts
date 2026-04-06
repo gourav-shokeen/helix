@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { requireAuth } from '@/lib/auth/requireAuth'
 
 interface BrainFile {
   path: string
@@ -23,6 +24,9 @@ function parseJsonObject(text: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth()
+    if (authResult instanceof NextResponse) return authResult
+
     const { query, fileMap } = (await request.json()) as { query?: string; fileMap?: BrainFile[] }
     const searchQuery = String(query || '').trim()
     const map = Array.isArray(fileMap) ? fileMap : []

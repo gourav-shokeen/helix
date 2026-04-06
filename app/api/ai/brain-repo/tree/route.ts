@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth/requireAuth'
 
 const IGNORED_FOLDERS = new Set([
   '.git', 'node_modules', '.next', 'dist', 'build', '.cache',
@@ -7,6 +8,9 @@ const IGNORED_FOLDERS = new Set([
 
 export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth()
+    if (authResult instanceof NextResponse) return authResult
+
     const { repoUrl } = await req.json()
 
     // Accept both "https://github.com/owner/repo" and "owner/repo"

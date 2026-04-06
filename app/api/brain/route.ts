@@ -1,6 +1,6 @@
-// app/api/brain/route.ts — Gemini AI analysis (gemini-1.5-flash)
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { createClient } from '@/lib/supabase/server'
 import type { BrainMode } from '@/types'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
@@ -39,6 +39,10 @@ ${content}`,
 
 export async function POST(request: NextRequest) {
     try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
         const { mode, content } = (await request.json()) as { mode: BrainMode; content: string }
 
         if (!mode || !PROMPTS[mode]) {

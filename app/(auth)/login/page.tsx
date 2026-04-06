@@ -1,5 +1,6 @@
 'use client'
 // app/(auth)/login/page.tsx
+import { Suspense } from 'react'
 import { signIn } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { APP_NAME, APP_TAGLINE } from '@/lib/constants'
@@ -19,7 +20,8 @@ const CODE_LINES = [
   'mermaid.initialize({ theme: "dark" })',
 ]
 
-export default function LoginPage() {
+// Inner component that reads searchParams — must be inside <Suspense>
+function LoginPageInner() {
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard'
 
@@ -240,5 +242,15 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+// Suspense boundary is required by Next.js whenever useSearchParams() is used
+// in a component that can be statically pre-rendered.
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
   )
 }

@@ -21,10 +21,16 @@ const CODE_LINES = [
 export default function LoginPage() {
   const handleGoogleLogin = async () => {
     const supabase = createClient()
+    // NEXT_PUBLIC_APP_URL must be set to https://helixx.me in Vercel env vars.
+    // This ensures the Google OAuth consent screen shows helixx.me, not a raw
+    // Supabase URL. Falls back to window.location.origin for local dev only.
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
+      window.location.origin
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${appUrl}/auth/callback`,
       },
     })
   }

@@ -82,22 +82,60 @@ Set `NEXT_PUBLIC_WS_URL=ws://localhost:1234` in `.env.local` for local collab.
 
 1. Push repo to GitHub
 2. Import into [Vercel](https://vercel.com)
-3. Add all env vars from `.env.example` in Vercel project settings
+3. Add all env vars from `.env.example` in Vercel project settings (see below)
 4. Set `NEXT_PUBLIC_APP_URL` to your production URL
 5. Deploy
+
+#### Vercel Environment Variables
+
+| Variable | Visibility | Where to get it |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Public (client + server) | Supabase → Project Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public (client + server) | Supabase → Project Settings → API |
+| `NEXT_PUBLIC_APP_URL` | Public | Set to `https://helixx.me` in production |
+| `NEXT_PUBLIC_WS_URL` | Public | Your Railway WS URL (`wss://...`) |
+| `GROQ_API_KEY` | **Server only** | console.groq.com/keys |
+| `GEMINI_API_KEY` | **Server only** | aistudio.google.com/app/apikey |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Server only — never `NEXT_PUBLIC_`** | Supabase → Project Settings → API |
+
+> **Security note:** `SUPABASE_SERVICE_ROLE_KEY` bypasses Row Level Security. It must **never** be prefixed with `NEXT_PUBLIC_` and must never appear in client-side code.
 
 ### WebSocket Server (Railway)
 
 1. Create a new Railway project
 2. Deploy the `ws-server/` directory
 3. Copy the Railway URL → set as `NEXT_PUBLIC_WS_URL` (use `wss://` for HTTPS)
+4. Set these env vars on the Railway service too:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
 
 ### Supabase
 
 1. Create a new Supabase project
 2. Run the SQL migrations (coming soon in `/supabase/migrations`)
 3. Enable Google OAuth under Authentication → Providers
-4. Add your production URL to the redirect URLs
+
+#### OAuth Redirect URL Configuration (required for Google sign-in)
+
+In your **Supabase Dashboard → Authentication → URL Configuration**:
+
+| Setting | Value |
+|---|---|
+| **Site URL** | `https://helixx.me` |
+| **Allowed Redirect URLs** | `https://helixx.me/**` |
+| | `http://localhost:3000/**` (for local dev) |
+
+> ⚠️ Remove any wildcard `*` entries. Using `/**` suffix-wildcards is safe; bare `*` allows open redirects.
+
+This is what makes the Google OAuth consent screen display **helixx.me** instead of the raw Supabase project URL.
+
+#### Row Level Security (RLS)
+
+RLS must be **enabled on all tables** in your Supabase project. Verify in:
+**Supabase Dashboard → Table Editor → [table name] → RLS enabled ✓**
+
+Without RLS, any user with the anon key can read/write all rows. The anon key is safe to expose as `NEXT_PUBLIC_SUPABASE_ANON_KEY` only when RLS is properly configured.
 
 ---
 

@@ -1,11 +1,15 @@
-// app/api/export/readme/route.ts — Gemini generates GitHub README
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { createClient } from '@/lib/supabase/server'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 
 export async function POST(request: NextRequest) {
     try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
         const { content, title } = (await request.json()) as { content: string; title?: string }
 
         const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })

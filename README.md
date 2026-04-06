@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Helix
+
+> I built Notion into a real-time collab app.
+
+![Helix Demo](./demo.gif)
+
+Helix is an open-source, real-time collaborative workspace where you can write, code, plan, and think — together. Built with a developer-first mindset: live cursors, executable code blocks, AI-powered codebase analysis, Kanban boards, Mermaid diagrams, and a daily journal — all in one place.
+
+🌐 **Live at [helixx.me](https://helixx.me)**
+
+---
+
+## Features
+
+- ⚡ **Real-time collaboration** — Live cursors, presence, and sync powered by Yjs + WebSocket
+- 🧠 **AI Codebase Brain** — Connect a GitHub repo, ask questions about your codebase
+- 💻 **Executable code blocks** — Write and run Python directly inside your doc
+- 📋 **Kanban boards** — Drag-and-drop task management inside any doc
+- 🔀 **Mermaid diagrams** — Flowcharts, ER diagrams, sequence diagrams, Gantt charts
+- 📓 **Daily journal** — Built-in journaling with AI-powered summaries
+- 💬 **Comment threads** — Highlight any text and start a discussion
+- 📤 **Export** — Export docs to DOCX or generate README files via AI
+- 🔐 **Auth** — Google OAuth via Supabase
+
+---
+
+## Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 14, TypeScript, Tailwind CSS |
+| Editor | Tiptap, Yjs |
+| State | Zustand |
+| Backend | Supabase (Auth, DB, RLS) |
+| WebSocket | Railway (custom y-websocket relay) |
+| AI | Groq (Llama), Gemini |
+| Deploy | Vercel (frontend), Railway (WS server) |
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- A [Supabase](https://supabase.com) account
+- A [Groq](https://console.groq.com) API key (for AI features)
+- A [Gemini](https://aistudio.google.com) API key (for AI features)
+
+### Installation
+
+```bash
+git clone https://github.com/gourav-shokeen/helix
+cd helix
+npm install
+cp .env.example .env.local
+```
+
+Fill in your `.env.local` with your own keys (see `.env.example` for all required variables).
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### WebSocket Server (for real-time collab)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd ws-server
+npm install
+node index.mjs
+```
 
-## Learn More
+Set `NEXT_PUBLIC_WS_URL=ws://localhost:1234` in `.env.local` for local collab.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Frontend (Vercel)
 
-## Deploy on Vercel
+1. Push repo to GitHub
+2. Import into [Vercel](https://vercel.com)
+3. Add all env vars from `.env.example` in Vercel project settings
+4. Set `NEXT_PUBLIC_APP_URL` to your production URL
+5. Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### WebSocket Server (Railway)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Create a new Railway project
+2. Deploy the `ws-server/` directory
+3. Copy the Railway URL → set as `NEXT_PUBLIC_WS_URL` (use `wss://` for HTTPS)
+
+### Supabase
+
+1. Create a new Supabase project
+2. Run the SQL migrations (coming soon in `/supabase/migrations`)
+3. Enable Google OAuth under Authentication → Providers
+4. Add your production URL to the redirect URLs
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
+
+---
+
+## License
+
+[AGPL-3.0](./LICENSE) — If you fork and host this as a service, you must open-source your version too.
+
+---
+
+## Author
+
+Built by [Gourav Shokeen](https://github.com/gourav-shokeen)

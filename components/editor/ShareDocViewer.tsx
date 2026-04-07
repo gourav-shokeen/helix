@@ -14,6 +14,11 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import * as Y from 'yjs'
+import { EnhancedCodeBlock } from './CodeBlockNode'
+import { DiagramNodeExtension } from './DiagramNode'
+import { KanbanBlockExtension } from './KanbanBlock'
+import { CommentMarkExtension } from './CommentMark'
+import { GitHubIssueNode } from './GitHubIssueNode'
 // getWsUrl() is called at runtime inside useEffect (browser context) so
 // it always has access to window.location.protocol and correctly returns wss://
 // when the page is served over HTTPS (e.g. Vercel production).
@@ -25,6 +30,8 @@ interface ShareDocViewerProps {
 }
 
 export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
+  // Overlay is shown until first sync; editor is always mounted so Yjs
+  // updates flow into it live even before the overlay is hidden.
   const [synced, setSynced] = useState(false)
 
   // Keep ydoc stable for the lifetime of this component — created once on mount.
@@ -91,10 +98,15 @@ export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId, shareToken])
 
+  // FIX 1: Always mount the editor so Yjs updates flow into it in real time.
+  // The editor is reactive — content updates live as WS messages arrive.
+  // We register all the same custom extensions as the main Editor.tsx so that
+  // code blocks, diagrams, kanban boards, etc. correctly render in read mode.
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
+        // FIX 2: disable the basic codeBlock so EnhancedCodeBlock takes over
         codeBlock: false,
         heading: { levels: [1, 2, 3] },
       }),
@@ -106,6 +118,13 @@ export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
       TableRow,
       TableCell,
       TableHeader,
+      // FIX 2: register custom node extensions so they render correctly
+      EnhancedCodeBlock,
+      DiagramNodeExtension,
+      // KanbanBoard needs a projectId to fetch data; docId is the closest equivalent
+      KanbanBlockExtension.configure({ projectId: docId }),
+      CommentMarkExtension,
+      GitHubIssueNode.configure({ repo: null }),
     ],
     editable: false,
     editorProps: {
@@ -113,23 +132,30 @@ export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
     },
   })
 
-  if (!synced) {
-    return (
-      <div style={{
-        color: '#555',
-        fontFamily: 'JetBrains Mono, monospace',
-        fontSize: 13,
-        padding: '48px',
-        textAlign: 'center',
-        letterSpacing: '0.05em',
-      }}>
-        ◉ loading document...
-      </div>
-    )
-  }
-
   return (
-    <div style={{ width: '100%' }}>
+    // FIX 1: Always render editor. Show a loading overlay until first sync arrives.
+    // Once removed, subsequent WS updates keep rendering live without any page reload.
+    <div style={{ width: '100%', position: 'relative' }}>
+      {/* Loading overlay — sits on top of the (already-mounted) editor */}
+      {!synced && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'flex-start',
+          paddingTop: 48,
+          justifyContent: 'center',
+          background: 'transparent',
+          pointerEvents: 'none',
+          color: '#555',
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 13,
+          letterSpacing: '0.05em',
+        }}>
+          ◉ loading document...
+        </div>
+      )}
       <EditorContent editor={editor} style={{ width: '100%' }} />
     </div>
   )

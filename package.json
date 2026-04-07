@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "analyze": "ANALYZE=true next build",
-    "ws": "node ws-server.mjs",
+    "ws": "node --env-file=.env.local ws-server.mjs",
     "dev:all": "concurrently \"npm run dev\" \"npm run ws\""
   },
   "dependencies": {

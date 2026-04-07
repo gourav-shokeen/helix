@@ -12,7 +12,14 @@ export const CURSOR_COLORS = [
 export const APP_NAME = 'Helix'
 export const APP_TAGLINE = 'Plan. Code. Collaborate.'
 
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:1234'
+const _RAW_WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:1234'
+
+// Auto-upgrade ws:// → wss:// when the page is served over HTTPS.
+// Browsers block mixed content (ws:// from an https:// page) with a SecurityError.
+export const WS_URL =
+  typeof window !== 'undefined' && window.location.protocol === 'https:'
+    ? _RAW_WS_URL.replace(/^ws:\/\//, 'wss://')
+    : _RAW_WS_URL
 
 export const SLASH_COMMANDS = [
     { id: 'code', icon: '⌥', title: 'Code block', desc: 'Syntax-highlighted code' },

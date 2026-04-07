@@ -14,7 +14,6 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import * as Y from 'yjs'
-import { IndexeddbPersistence } from 'y-indexeddb'
 import { DiagramNodeExtension } from './DiagramNode'
 import { KanbanBlockExtension } from '@/components/editor/KanbanBlock'
 import { EnhancedCodeBlock } from './CodeBlockNode'
@@ -365,10 +364,25 @@ export function Editor({
   useEffect(() => {
     let cancelled = false
     const ydoc = new Y.Doc()
-    new IndexeddbPersistence(documentId, ydoc)
-
+    let idb: any = null
     let syncHandler: ((synced: boolean) => void) | null = null
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null
+
+    // Only use IndexedDB for editable editors — share viewers get content from WS only.
+    if (!readOnly) {
+      import('y-indexeddb').then(({ IndexeddbPersistence }) => {
+        if (!cancelled) idb = new IndexeddbPersistence(documentId, ydoc)
+      }).catch(() => { /* IDB not critical */ })
+    }
+
+    // CRITICAL: Set the fallback timer HERE — outside the async import chain.
+    // If the WS module import hangs, the provider constructor throws (bad URL),
+    // or the connection is blocked (mixed content), this timer still fires and
+    // shows the editor instead of hanging at "connecting..." forever.
+    const fallbackTimer = setTimeout(() => {
+      if (!cancelled) {
+        setReady(prev => prev ?? { ydoc, provider: providerRef.current })
+      }
+    }, 5000)
 
     import('y-websocket').then(async (mod: any) => {
       if (cancelled) { ydoc.destroy(); return }
@@ -381,49 +395,52 @@ export function Editor({
         token = session?.access_token ?? null
       } catch { /* non-fatal */ }
 
-      // Pass token as a query param via WebsocketProvider's params option.
-      // DO NOT embed it in the base URL — y-websocket appends "/<room>" after
-      // the base URL, so embedding the token there produces a malformed path
-      // like ws://host?token=xxx/<documentId> which the server can't parse.
-      const provider = new mod.WebsocketProvider(
-        WS_URL,
-        documentId,
-        ydoc,
-        { params: token ? { token } : {} }
-      )
-      providerRef.current = provider
+      let provider: any = null
+      try {
+        // Pass token as a query param via WebsocketProvider's params option.
+        // DO NOT embed it in the base URL — y-websocket appends "/<room>" after
+        // the base URL, so embedding the token there produces a malformed path.
+        provider = new mod.WebsocketProvider(
+          WS_URL,
+          documentId,
+          ydoc,
+          { params: token ? { token } : {} }
+        )
+        providerRef.current = provider
 
-      const color = CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)]
-      provider.awareness.setLocalStateField('user', {
-        id: user.id,
-        name: user.name,
-        color,
-        avatar: user.avatar_url,
-      })
+        const color = CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)]
+        provider.awareness.setLocalStateField('user', {
+          id: user.id,
+          name: user.name,
+          color,
+          avatar: user.avatar_url,
+        })
 
-      onProviderReady?.(provider)
+        onProviderReady?.(provider)
 
-      syncHandler = (synced: boolean) => {
-        if (synced && !cancelled) {
-          setReady({ ydoc, provider })
+        syncHandler = (synced: boolean) => {
+          if (synced && !cancelled) {
+            setReady({ ydoc, provider })
+          }
         }
+        provider.on('sync', syncHandler)
+      } catch (err) {
+        // Provider constructor threw (e.g. malformed WS URL, mixed content).
+        // The fallback timer above will still show the editor after 5s.
+        console.error('[editor] WebsocketProvider failed to create:', err)
       }
-      provider.on('sync', syncHandler)
-
-      fallbackTimer = setTimeout(() => {
-        if (!cancelled) {
-          setReady(prev => prev ?? { ydoc, provider })
-        }
-      }, 3000)
+    }).catch((err) => {
+      console.error('[editor] y-websocket import failed:', err)
+      // Fallback timer still fires — editor will show (empty, disconnected)
     })
-
 
     return () => {
       cancelled = true
-      if (fallbackTimer) clearTimeout(fallbackTimer)
+      clearTimeout(fallbackTimer)
       const provider = providerRef.current
       if (provider && syncHandler) provider.off('sync', syncHandler)
       providerRef.current = null
+      if (idb) idb.destroy()
       setReady(prev => {
         if (prev) {
           prev.provider?.destroy?.()
@@ -432,7 +449,7 @@ export function Editor({
         return null
       })
     }
-  }, [documentId, user.id])
+  }, [documentId, user.id, readOnly])
 
   return (
     <div

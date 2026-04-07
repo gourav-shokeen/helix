@@ -1,9 +1,13 @@
 // ws-server/index.mjs
-// Yjs WebSocket server with Supabase persistence.
-// Uses y-websocket's setPersistence API:
-//   - bindState  → load all historical updates from Supabase when a room opens
-//   - ydoc 'update' listener → save every new edit to Supabase
-//   - setupWSConnection → handles the full Yjs sync protocol
+//
+// KEY DESIGN: y-websocket's setupWSConnection sends sync step 1 SYNCHRONOUSLY
+// the moment it's called. setPersistence's bindState is called but NOT awaited
+// internally — meaning any async Supabase fetch races against the sync handshake
+// and the client receives an empty doc.
+//
+// FIX: We manually call getYDoc() (from y-websocket's exported API) to create
+// the WSSharedDoc in its internal map, then await our Supabase hydration, THEN
+// call setupWSConnection. By the time step 1 is sent the doc is already full.
 //
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
@@ -20,21 +24,26 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('[ws] MISSING SUPABASE ENV VARS — persistence disabled')
 }
 
-// ── Supabase client (service role key — bypasses RLS for server-side ops) ─────
-// Created lazily to avoid crash when env vars are missing (e.g. local dev without .env)
+// ── Supabase client (service role — bypasses RLS) ────────────────────────────
 const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
   : null
 
 // ── Load y-websocket utils ────────────────────────────────────────────────────
 const ywsPath = new URL('./node_modules/y-websocket/bin/utils.cjs', import.meta.url)
-const { setupWSConnection, setPersistence } = await import(ywsPath.href)
+const { setupWSConnection, getYDoc } = await import(ywsPath.href)
 
-// ── Decode bytea from PostgREST (base64 string or array) ─────────────────────
+// ── Decode bytea returned by PostgREST ────────────────────────────────────────
+// PostgREST can return bytea as '\xdeadbeef' (hex) or as base64 string.
+// supabase-js typically returns base64; handle both defensively.
 function decodeUpdateData(raw) {
   if (!raw) return null
   if (typeof raw === 'string') {
-    // PostgREST returns bytea as base64 string
+    if (raw.startsWith('\\x')) {
+      // Postgres hex-encoded bytea: \xdeadbeef...
+      return Buffer.from(raw.slice(2), 'hex')
+    }
+    // Base64 (default supabase-js encoding for bytea)
     return Buffer.from(raw, 'base64')
   }
   if (raw instanceof Uint8Array || Buffer.isBuffer(raw)) return raw
@@ -42,14 +51,17 @@ function decodeUpdateData(raw) {
   return null
 }
 
-// ── Register Supabase persistence with y-websocket ────────────────────────────
-// bindState is called once per room, before any sync messages are sent.
-// This is the correct place to hydrate the ydoc from Supabase.
-setPersistence({
-  bindState: async (docName, ydoc) => {
+// ── Per-doc hydration promise ─────────────────────────────────────────────────
+// Stored on the WSSharedDoc instance itself to prevent double-loading on
+// concurrent connections arriving for the same new room.
+//
+async function hydrateDoc(doc, docName) {
+  // If already hydrated (or hydrating), return the same promise
+  if (doc._hydratePromise) return doc._hydratePromise
+
+  doc._hydratePromise = (async () => {
     if (!supabase) return
 
-    // Load ALL persisted updates in insertion order
     const { data, error } = await supabase
       .from('document_updates')
       .select('update_data')
@@ -57,7 +69,7 @@ setPersistence({
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error(`[ws] failed to load updates for ${docName}:`, error.message)
+      console.error(`[ws] load error for room=${docName}:`, error.message)
       return
     }
 
@@ -65,41 +77,46 @@ setPersistence({
       for (const row of data) {
         try {
           const update = decodeUpdateData(row.update_data)
-          if (update) Y.applyUpdate(ydoc, update)
+          if (update) Y.applyUpdate(doc, update)
         } catch (e) {
           console.error('[ws] applyUpdate error:', e)
         }
       }
       console.log(`[ws] loaded ${data.length} updates for room=${docName}`)
+    } else {
+      console.log(`[ws] no saved updates for room=${docName} (new doc)`)
     }
 
-    // Persist every future update to Supabase
-    ydoc.on('update', async (update) => {
+    // Hook persistence for future updates on this doc
+    // Only attach once (guarded by _hydratePromise check above)
+    doc.on('update', async (update) => {
       if (!supabase) return
       try {
-        // PostgREST accepts bytea as a base64 string in JSON bodies
         const { error: insertError } = await supabase
           .from('document_updates')
           .insert({
             document_id: docName,
+            // PostgREST accepts base64 strings for bytea columns in JSON bodies
             update_data: Buffer.from(update).toString('base64'),
           })
         if (insertError) {
-          console.error('[ws] failed to save update:', insertError.message)
+          console.error('[ws] save error:', insertError.message)
         }
       } catch (e) {
-        console.error('[ws] save error:', e)
+        console.error('[ws] save exception:', e)
       }
     })
-  },
+  })()
 
-  // Called when the last connection to a room closes — no-op since we persist per-update
-  writeState: (_docName, _ydoc) => Promise.resolve(),
-})
+  return doc._hydratePromise
+}
 
-// ── JWT validation via Supabase Auth REST ─────────────────────────────────────
-async function validateJwt(token) {
+// ── Token validation: Supabase JWT OR share_links token ──────────────────────
+// Tries JWT first (authenticated users), falls back to share token (guests).
+async function validateToken(token, docName) {
   if (!token || !SUPABASE_URL || !SUPABASE_ANON_KEY) return false
+
+  // Attempt 1: validate as Supabase JWT (authenticated users)
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
       headers: {
@@ -107,13 +124,30 @@ async function validateJwt(token) {
         apikey: SUPABASE_ANON_KEY,
       },
     })
-    return res.ok
-  } catch {
-    return false
-  }
+    if (res.ok) return true
+  } catch { /* not a JWT, try share token */ }
+
+  // Attempt 2: validate as share_links token UUID (unauthenticated share viewers)
+  if (!supabase) return false
+  try {
+    const { data, error } = await supabase
+      .from('share_links')
+      .select('doc_id, permission, expires_at')
+      .eq('token', token)
+      .maybeSingle()
+
+    if (!error && data && data.doc_id === docName) {
+      // Valid share token for this exact document, and not expired
+      if (!data.expires_at || new Date(data.expires_at) > new Date()) {
+        return true
+      }
+    }
+  } catch { /* fall through */ }
+
+  return false
 }
 
-// ── HTTP server (health check) + WebSocket server ────────────────────────────
+// ── HTTP + WebSocket server ───────────────────────────────────────────────────
 const server = createServer((req, res) => {
   res.writeHead(200)
   res.end('ok')
@@ -137,16 +171,26 @@ wss.on('connection', async (ws, req) => {
 
   console.log(`[ws] connection: room=${docName}`)
 
-  // Reject unauthenticated connections
-  const valid = await validateJwt(jwt)
+  // Reject unauthenticated connections (JWT or valid share token required)
+  const valid = await validateToken(jwt, docName)
   if (!valid) {
-    console.warn(`[ws] unauthorized connection attempt for room=${docName}`)
+    console.warn(`[ws] unauthorized for room=${docName}`)
     ws.close(4001, 'Unauthorized')
     return
   }
 
-  // setupWSConnection handles the full Yjs sync protocol (step1/step2/update/awareness).
-  // It will call our bindState hook on first connection to this room.
+  // STEP 1: Get or create the WSSharedDoc in y-websocket's internal map.
+  // getYDoc() is synchronous — it immediately registers the doc so subsequent
+  // concurrent connections for the same room get the same instance.
+  const doc = getYDoc(docName)
+
+  // STEP 2: Await full Supabase hydration BEFORE syncing.
+  // hydrateDoc() stores a Promise on the doc itself — concurrent connections
+  // for the same room share the same Promise and all await it safely.
+  await hydrateDoc(doc, docName)
+
+  // STEP 3: ONLY NOW let y-websocket send sync step 1 to the client.
+  // The doc is already full at this point so the client receives all content.
   setupWSConnection(ws, req, { docName })
 })
 

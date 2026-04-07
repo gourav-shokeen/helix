@@ -1,10 +1,10 @@
 // app/(public)/share/[id]/page.tsx
 // Handles token-based share links AND legacy public doc links.
-// Requires authentication — no guest editing.
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import type { Document } from '@/types'
+import { ShareDocViewer } from '@/components/editor/ShareDocViewer'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -76,7 +76,7 @@ export default async function SharePage({ params }: Props) {
 
     // View-only token link → show read-only page (no auth required)
     const title = await getDocTitle(supabase, link.doc_id)
-    return <ReadOnlyView docId={link.doc_id} title={title} permission="view" />
+    return <ReadOnlyView docId={link.doc_id} title={title} permission="view" shareToken={id} />
   }
 
   // ── Fallback: legacy public doc link (id = doc uuid) ──
@@ -90,7 +90,7 @@ export default async function SharePage({ params }: Props) {
     return <PrivateDoc />
   }
 
-  return <ReadOnlyView docId={id} title={(doc as Document).title} permission="view" />
+  return <ReadOnlyView docId={id} title={(doc as Document).title} permission="view" shareToken={id} />
 }
 
 // ── Helpers ──────────────────────────────────────────────
@@ -114,7 +114,7 @@ function PrivateDoc() {
   )
 }
 
-function ReadOnlyView({ docId, title, permission }: { docId: string; title: string; permission: string }) {
+function ReadOnlyView({ docId, title, permission, shareToken }: { docId: string; title: string; permission: string; shareToken: string }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#0d0d1a', fontFamily: 'JetBrains Mono, monospace', color: '#e0e0e0' }}>
       {/* Header */}
@@ -128,16 +128,12 @@ function ReadOnlyView({ docId, title, permission }: { docId: string; title: stri
         <a href="/login" style={{ ...accentBtnStyle, marginLeft: 'auto', flexShrink: 0 }}>Open in Helix</a>
       </header>
 
-      {/* Content */}
+      {/* Document content — rendered via Tiptap + Yjs WS sync */}
       <main style={{ flex: 1, maxWidth: 820, width: '100%', margin: '0 auto', padding: '56px 48px' }}>
-        <h1 style={{ color: '#fff', fontSize: '2rem', fontWeight: 700, marginTop: 0, marginBottom: 24, lineHeight: 1.3 }}>
+        <h1 style={{ color: '#fff', fontSize: '2rem', fontWeight: 700, marginTop: 0, marginBottom: 32, lineHeight: 1.3 }}>
           {title}
         </h1>
-        <p style={{ color: '#555', fontSize: 13, lineHeight: 1.7 }}>
-          This is a read-only shared view.{' '}
-          <a href="/login" style={{ color: '#00d4a1', textDecoration: 'none' }}>Sign in to Helix</a>{' '}
-          to collaborate on this document.
-        </p>
+        <ShareDocViewer docId={docId} shareToken={shareToken} />
       </main>
 
       {/* Footer */}

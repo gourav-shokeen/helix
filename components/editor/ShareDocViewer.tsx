@@ -1,7 +1,7 @@
 'use client'
 // components/editor/ShareDocViewer.tsx
-// Mounts a real Tiptap editor synced via WebSocket for unauthenticated share viewers.
-// Uses the share token UUID as the WS auth token (validated server-side via share_links table).
+// Read-only Tiptap editor synced live via WebSocket for share-link viewers.
+// Uses the share token UUID as the WS auth param (validated server-side).
 import { useEffect, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -19,9 +19,6 @@ import { DiagramNodeExtension } from './DiagramNode'
 import { KanbanBlockExtension } from './KanbanBlock'
 import { CommentMarkExtension } from './CommentMark'
 import { GitHubIssueNode } from './GitHubIssueNode'
-// getWsUrl() is called at runtime inside useEffect (browser context) so
-// it always has access to window.location.protocol and correctly returns wss://
-// when the page is served over HTTPS (e.g. Vercel production).
 import { getWsUrl } from '@/lib/constants'
 
 interface ShareDocViewerProps {
@@ -30,83 +27,88 @@ interface ShareDocViewerProps {
 }
 
 export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
-  // Overlay is shown until first sync; editor is always mounted so Yjs
-  // updates flow into it live even before the overlay is hidden.
   const [synced, setSynced] = useState(false)
 
-  // Keep ydoc stable for the lifetime of this component — created once on mount.
+  // ── Yjs doc: stable for the lifetime of this component ───────────────────
   // IMPORTANT: do NOT destroy in useEffect cleanup. The Tiptap Collaboration
   // extension holds a live reference; destroying it wipes the editor content.
-  // Only the WebsocketProvider is destroyed on cleanup.
+  // Only the WebsocketProvider is torn down on cleanup.
   const ydocRef = useRef<Y.Doc | null>(null)
   if (!ydocRef.current) {
     ydocRef.current = new Y.Doc()
   }
   const ydoc = ydocRef.current
 
+  // ── Provider ref: mirrors the pattern in Editor.tsx ───────────────────────
+  // Keeping the provider in a ref (not state) means we can safely call
+  // destroy() in the useEffect cleanup without triggering a re-render, and
+  // the cleanup can always reach the CURRENT provider even after async code.
+  const providerRef = useRef<any>(null)
+
   useEffect(() => {
-    let provider: any = null
     let cancelled = false
 
-    // getWsUrl() is called here (inside useEffect = browser) so window is always defined.
     const wsUrl = getWsUrl()
     console.log('[ShareDocViewer] connecting to', wsUrl, 'room', docId)
 
-    // Dynamic import to avoid SSR issues
     import('y-websocket').then((mod) => {
+      // If this effect was already cancelled (StrictMode cleanup ran first),
+      // do NOT create a provider — the second mount's effect will create one.
       if (cancelled) return
 
-      provider = new mod.WebsocketProvider(wsUrl, docId, ydoc, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const provider: any = new mod.WebsocketProvider(wsUrl, docId, ydoc, {
         params: { token: shareToken },
       })
+      providerRef.current = provider
 
       provider.on('status', (event: { status: string }) => {
-        console.log('[ShareDocViewer] WS status:', event.status)
+        console.log('[ShareDocViewer] WS status', event.status)
       })
 
       const onSync = (isSynced: boolean) => {
-        console.log('[ShareDocViewer] sync event:', isSynced)
+        console.log('[ShareDocViewer] sync', isSynced)
         if (isSynced && !cancelled) setSynced(true)
       }
       provider.on('sync', onSync)
 
-      // Fallback: show content after 5s even if sync event is missed
-      const fallback = setTimeout(() => {
-        if (!cancelled) {
-          console.log('[ShareDocViewer] fallback timeout — showing content')
-          setSynced(true)
-        }
+      // Safety fallback: if the sync event never fires (e.g. empty doc),
+      // reveal the editor after 5 seconds so the user isn't stuck.
+      const fallbackTimer = window.setTimeout(() => {
+        if (!cancelled) setSynced(true)
       }, 5000)
 
-      provider._shareCleanup = () => {
-        clearTimeout(fallback)
+      // Stash cleanup helpers directly on the provider instance.
+      // Cast to any to allow these ad-hoc fields without type errors.
+      ;(provider as any)._viewerCleanup = () => {
+        window.clearTimeout(fallbackTimer)
         provider.off('sync', onSync)
       }
     })
 
     return () => {
       cancelled = true
-      if (provider) {
-        provider._shareCleanup?.()
-        // Only destroy the PROVIDER (WS connection), NOT the ydoc.
-        // The ydoc is kept alive via ydocRef so the Tiptap editor
-        // retains its content across StrictMode double-invocations.
-        provider.destroy()
+      const p = providerRef.current
+      if (p) {
+        p._viewerCleanup?.()
+        // Destroy the WS connection but leave ydoc alive.
+        // Next mount creates a fresh provider on the same ydoc.
+        p.destroy()
+        providerRef.current = null
       }
     }
-    // ydoc is stable (ref) — eslint-disable-next-line is intentional
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docId, shareToken])
+  }, [docId, shareToken]) // ydoc is a stable ref — intentionally omitted
 
-  // FIX 1: Always mount the editor so Yjs updates flow into it in real time.
-  // The editor is reactive — content updates live as WS messages arrive.
-  // We register all the same custom extensions as the main Editor.tsx so that
-  // code blocks, diagrams, kanban boards, etc. correctly render in read mode.
+  // ── Tiptap editor: always mounted so Yjs updates render live ─────────────
+  // The Collaboration extension binds the editor to ydoc reactively.
+  // As the WS provider feeds updates into ydoc (step1/2/update messages),
+  // the editor re-renders in place — no page reload needed.
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
-        // FIX 2: disable the basic codeBlock so EnhancedCodeBlock takes over
+        // Must be disabled when using EnhancedCodeBlock (CodeBlockLowlight)
         codeBlock: false,
         heading: { levels: [1, 2, 3] },
       }),
@@ -118,10 +120,14 @@ export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
       TableRow,
       TableCell,
       TableHeader,
-      // FIX 2: register custom node extensions so they render correctly
+      // ── Custom nodes — must match Editor.tsx exactly so node types are recognised ──
       EnhancedCodeBlock,
       DiagramNodeExtension,
-      // KanbanBoard needs a projectId to fetch data; docId is the closest equivalent
+      // projectId is used only for the realtime subscription channel name.
+      // The board data is always fetched by boardId (from node attrs) so docId
+      // here does NOT affect what data loads — just what channel name is used.
+      // The KanbanBoard subscription was also fixed to use id=eq.boardId so
+      // it fires correctly regardless of the projectId value.
       KanbanBlockExtension.configure({ projectId: docId }),
       CommentMarkExtension,
       GitHubIssueNode.configure({ repo: null }),
@@ -133,26 +139,28 @@ export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
   })
 
   return (
-    // FIX 1: Always render editor. Show a loading overlay until first sync arrives.
-    // Once removed, subsequent WS updates keep rendering live without any page reload.
     <div style={{ width: '100%', position: 'relative' }}>
-      {/* Loading overlay — sits on top of the (already-mounted) editor */}
+      {/* Loading overlay — non-blocking, sits above the already-mounted editor.
+          Removed as soon as the WS provider signals sync (or after 5s fallback).
+          After it's gone, all subsequent WS updates land live into the editor. */}
       {!synced && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          zIndex: 10,
-          display: 'flex',
-          alignItems: 'flex-start',
-          paddingTop: 48,
-          justifyContent: 'center',
-          background: 'transparent',
-          pointerEvents: 'none',
-          color: '#555',
-          fontFamily: 'JetBrains Mono, monospace',
-          fontSize: 13,
-          letterSpacing: '0.05em',
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'flex-start',
+            paddingTop: 48,
+            justifyContent: 'center',
+            background: 'transparent',
+            pointerEvents: 'none',
+            color: '#555',
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 13,
+            letterSpacing: '0.05em',
+          }}
+        >
           ◉ loading document...
         </div>
       )}

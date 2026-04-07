@@ -121,9 +121,13 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
   }, [loadBoard])
 
   useEffect(() => {
+    if (!boardId) return
+    // Subscribe by the specific board's row id, not projectId.
+    // This is correct in all contexts (editor, share viewer) and fires
+    // whenever this exact board is updated, regardless of projectId.
     const channel = supabase
-      .channel(`board:${projectId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_boards', filter: `project_id=eq.${projectId}` }, payload => {
+      .channel(`board:${boardId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_boards', filter: `id=eq.${boardId}` }, payload => {
         const next = mergeData((payload.new as { data?: unknown })?.data)
         setBoardData(next)
         onDataChange?.(next)
@@ -133,7 +137,7 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [boardId, projectId, mergeData, onDataChange, supabase])
+  }, [boardId, mergeData, onDataChange, supabase])
 
   const handleAddCard = async (column: KanbanColumnKey) => {
     const title = newTitle.trim()

@@ -64,3 +64,30 @@ CREATE POLICY "documents_update" ON public.documents
         AND dm.role IN ('owner', 'editor')
     )
   );
+
+-- ── 4. Allow share-link viewers to read project_boards (Kanban) ─────────────
+-- The existing "project_boards_auth" policy requires auth.uid() IS NOT NULL,
+-- which blocks unauthenticated share-link viewers from loading kanban data.
+-- Kanban board nodes are synced via Yjs (WS) so the node renders, but the
+-- card data comes from a separate Supabase SELECT keyed by board uuid.
+-- We replace the blanket policy with two scoped ones:
+--   1. authenticated users  → full read/write (same as before)
+--   2. share-link viewers   → SELECT only if the document has a valid share link
+
+DROP POLICY IF EXISTS "project_boards_auth"        ON public.project_boards;
+DROP POLICY IF EXISTS "project_boards_auth_rw"     ON public.project_boards;
+DROP POLICY IF EXISTS "project_boards_share_read"  ON public.project_boards;
+
+-- Authenticated users retain full access
+CREATE POLICY "project_boards_auth_rw" ON public.project_boards
+  FOR ALL USING (auth.uid() IS NOT NULL);
+
+-- Anon share-link viewers can read a board if its parent doc has a live share link
+-- Anon share-link viewers can read a board if its parent doc has a live share link
+CREATE POLICY "project_boards_share_read" ON public.project_boards
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.share_links sl
+      WHERE sl.doc_id::text = project_id::text
+    )
+  );

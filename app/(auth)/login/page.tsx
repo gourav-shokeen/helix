@@ -1,6 +1,7 @@
 'use client'
 // app/(auth)/login/page.tsx
 import { createClient } from '@/lib/supabase/client'
+import { useSearchParams } from 'next/navigation'
 import { APP_NAME, APP_TAGLINE } from '@/lib/constants'
 
 const CODE_LINES = [
@@ -19,12 +20,16 @@ const CODE_LINES = [
 ]
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? searchParams.get('redirectTo') ?? ''
+
   const handleGoogleLogin = async () => {
     const supabase = createClient()
+    const callbackUrl = `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl,
       },
     })
   }

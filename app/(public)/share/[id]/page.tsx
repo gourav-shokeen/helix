@@ -1,9 +1,9 @@
 // app/(public)/share/[id]/page.tsx
-// Handles both token-based share links AND legacy public doc links
+// Handles token-based share links AND legacy public doc links.
+// Requires authentication — no guest editing.
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import { GuestEditor } from '@/components/editor/GuestEditor'
 import type { Document } from '@/types'
 
 interface Props {
@@ -58,23 +58,23 @@ export default async function SharePage({ params }: Props) {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (link.permission === 'edit') {
-      if (user) {
-        // Logged-in user with edit permission → send them straight to the real editor
-        redirect(`/doc/${link.doc_id}`)
+      // Edit links require authentication — redirect to login if not signed in
+      if (!user) {
+        redirect(`/login?next=/share/${id}`)
       }
-      // Not logged in → guest collaborative editor authenticated via share token
-      const title = await getDocTitle(supabase, link.doc_id)
-      return (
-        <GuestEditor
-          docId={link.doc_id}
-          docTitle={title}
-          permission="edit"
-          shareToken={id}
-        />
-      )
+
+      // Logged-in user with edit permission → upsert membership then go to editor
+      await supabase
+        .from('document_members')
+        .upsert(
+          { document_id: link.doc_id, user_id: user.id, role: 'editor' },
+          { onConflict: 'document_id,user_id', ignoreDuplicates: true }
+        )
+
+      redirect(`/doc/${link.doc_id}`)
     }
 
-    // View-only token link → show read-only page
+    // View-only token link → show read-only page (no auth required)
     const title = await getDocTitle(supabase, link.doc_id)
     return <ReadOnlyView docId={link.doc_id} title={title} permission="view" />
   }
@@ -110,25 +110,6 @@ function PrivateDoc() {
         This document is private.
       </p>
       <a href="/login" style={accentBtnStyle}>Open in Helix</a>
-    </div>
-  )
-}
-
-function SignInPrompt({ token, title }: { token: string; title: string }) {
-  return (
-    <div style={fullCenterStyle}>
-      <div style={{
-        textAlign: 'center', fontFamily: 'JetBrains Mono, monospace',
-        background: '#141416', border: '1px solid #242428',
-        borderRadius: 8, padding: '36px 44px', maxWidth: 360,
-      }}>
-        <div style={{ fontSize: 28, marginBottom: 16 }}>✏</div>
-        <div style={{ color: '#e8e8ec', fontSize: 14, marginBottom: 8, fontWeight: 600 }}>{title}</div>
-        <div style={{ color: '#55556a', fontSize: 12, marginBottom: 24 }}>
-          Sign in to edit this document.
-        </div>
-        <a href={`/login?next=/share/${token}`} style={accentBtnStyle}>Sign in to edit</a>
-      </div>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 // app/(auth)/login/page.tsx
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSearchParams } from 'next/navigation'
 import { APP_NAME, APP_TAGLINE } from '@/lib/constants'
@@ -19,7 +20,7 @@ const CODE_LINES = [
   'mermaid.initialize({ theme: "dark" })',
 ]
 
-export default function LoginPage() {
+function LoginContent() {
   const searchParams = useSearchParams()
   const next = searchParams.get('next') ?? searchParams.get('redirectTo') ?? ''
 
@@ -247,5 +248,13 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   )
 }

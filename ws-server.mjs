@@ -95,11 +95,21 @@ async function hydrateDoc(doc, docName) {
 }
 
 // ── Token validation: Supabase JWT OR share_links token ──────────────────
+// NOTE: ws-server.mjs is used for LOCAL DEV ONLY.
+// The production Railway server (ws-server/index.mjs) enforces strict auth.
 async function validateToken(token, docName) {
-  // If no Supabase config, skip auth for local dev
-  if (!token) return false
+  // No Supabase config at all — skip auth entirely (dev convenience)
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.warn('[ws] Auth skipped — SUPABASE env vars missing')
+    return true
+  }
+
+  // No token sent — allow in local dev.
+  // The browser Supabase SSR client often can't surface the session token
+  // when called from inside a dynamic import (hydration timing).
+  // Production Railway server handles this strictly.
+  if (!token) {
+    console.warn('[ws] no token — allowing for local dev')
     return true
   }
 

@@ -3,8 +3,17 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
 import type { Document } from '@/types'
 import { ShareDocViewer } from '@/components/editor/ShareDocViewer'
+
+// Service-role client — bypasses RLS for metadata reads on public share pages.
+// ONLY used for SELECT queries on share_links and documents.title.
+// Auth actions still use the SSR client (user session).
+const adminDb = createSupabaseAdmin(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 interface Props {
   params: Promise<{ id: string }>
@@ -16,15 +25,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const supabase = await createClient()
 
-  // Try token lookup first
-  const { data: link } = await supabase
+  // Try token lookup first — use admin client to bypass RLS for unauthenticated viewers
+  const { data: link } = await adminDb
     .from('share_links')
     .select('doc_id')
     .eq('token', id)
     .single()
 
   const docId = link?.doc_id ?? id
-  const { data } = await supabase.from('documents').select('title').eq('id', docId).single()
+  const { data } = await adminDb.from('documents').select('title').eq('id', docId).single()
 
   const title = data?.title ?? 'Shared Document'
   const description = `Read "${title}" — a shared document on Helix, the AI-powered collaborative note editor.`
@@ -47,8 +56,8 @@ export default async function SharePage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  // ── Try token-based share link first ──
-  const { data: link } = await supabase
+  // ── Try token-based share link first — use admin client to bypass RLS ──
+  const { data: link } = await adminDb
     .from('share_links')
     .select('doc_id, permission')
     .eq('token', id)
@@ -75,7 +84,7 @@ export default async function SharePage({ params }: Props) {
     }
 
     // View-only token link → show read-only page (no auth required)
-    const title = await getDocTitle(supabase, link.doc_id)
+    const title = await getDocTitle(link.doc_id)
     return <ReadOnlyView docId={link.doc_id} title={title} permission="view" shareToken={id} />
   }
 
@@ -95,8 +104,9 @@ export default async function SharePage({ params }: Props) {
 
 // ── Helpers ──────────────────────────────────────────────
 
-async function getDocTitle(supabase: any, docId: string): Promise<string> {
-  const { data } = await supabase.from('documents').select('title').eq('id', docId).single()
+// Always use the admin client here — anon RLS blocks document reads for unauthenticated viewers
+async function getDocTitle(docId: string): Promise<string> {
+  const { data } = await adminDb.from('documents').select('title').eq('id', docId).single()
   return data?.title ?? 'Untitled'
 }
 

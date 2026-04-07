@@ -26,10 +26,15 @@ interface ShareDocViewerProps {
 
 export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
   const [synced, setSynced] = useState(false)
-  // Keep ydoc stable for the lifetime of this component — do NOT destroy it in
-  // useEffect cleanup because the Tiptap Collaboration extension holds a reference
-  // to it and destroying it would wipe the editor content.
-  const ydocRef = useRef<Y.Doc>(new Y.Doc())
+
+  // Keep ydoc stable for the lifetime of this component — created once on mount.
+  // IMPORTANT: do NOT destroy in useEffect cleanup. The Tiptap Collaboration
+  // extension holds a live reference; destroying it wipes the editor content.
+  // Only the WebsocketProvider is destroyed on cleanup.
+  const ydocRef = useRef<Y.Doc | null>(null)
+  if (!ydocRef.current) {
+    ydocRef.current = new Y.Doc()
+  }
   const ydoc = ydocRef.current
 
   useEffect(() => {
@@ -37,7 +42,6 @@ export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
     let cancelled = false
 
     // getWsUrl() is called here (inside useEffect = browser) so window is always defined.
-    // This ensures ws:// is upgraded to wss:// on HTTPS (Vercel production).
     const wsUrl = getWsUrl()
     console.log('[ShareDocViewer] connecting to', wsUrl, 'room', docId)
 
@@ -54,16 +58,19 @@ export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
       })
 
       const onSync = (isSynced: boolean) => {
+        console.log('[ShareDocViewer] sync event:', isSynced)
         if (isSynced && !cancelled) setSynced(true)
       }
       provider.on('sync', onSync)
 
-      // Fallback: show content after 4s even if sync event is missed
+      // Fallback: show content after 5s even if sync event is missed
       const fallback = setTimeout(() => {
-        if (!cancelled) setSynced(true)
-      }, 4000)
+        if (!cancelled) {
+          console.log('[ShareDocViewer] fallback timeout — showing content')
+          setSynced(true)
+        }
+      }, 5000)
 
-      // Store cleanup refs on provider so we can clean up properly
       provider._shareCleanup = () => {
         clearTimeout(fallback)
         provider.off('sync', onSync)
@@ -74,11 +81,15 @@ export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
       cancelled = true
       if (provider) {
         provider._shareCleanup?.()
+        // Only destroy the PROVIDER (WS connection), NOT the ydoc.
+        // The ydoc is kept alive via ydocRef so the Tiptap editor
+        // retains its content across StrictMode double-invocations.
         provider.destroy()
       }
-      ydoc.destroy()
     }
-  }, [docId, shareToken, ydoc])
+    // ydoc is stable (ref) — eslint-disable-next-line is intentional
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId, shareToken])
 
   const editor = useEditor({
     immediatelyRender: false,

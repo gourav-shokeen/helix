@@ -33,24 +33,17 @@ CREATE POLICY "document_members_insert" ON public.document_members
     )
   );
 
--- ── 2. Fix document_members_select — owners must see all member rows ─────────
--- Old policy: you can only see your own row.
--- This means the inner join in getMyDocuments is fine for a member,
--- but we also want owners to be able to see who has access to their docs.
+-- ── 2. Fix document_members_select ──────────────────────────────────────────
+-- Keep simple — only select your own row. This avoids circular RLS:
+-- documents_select references document_members,
+-- so document_members_select CANNOT reference documents (infinite recursion).
+-- Owners always have a row in document_members (inserted by createDocument),
+-- so user_id = auth.uid() correctly covers both owners and editors/viewers.
 
 DROP POLICY IF EXISTS "document_members_select" ON public.document_members;
 
 CREATE POLICY "document_members_select" ON public.document_members
-  FOR SELECT USING (
-    -- You can always see your own membership row
-    user_id = auth.uid()
-    OR
-    -- Doc owner can see all members of their documents
-    EXISTS (
-      SELECT 1 FROM public.documents d
-      WHERE d.id = document_id AND d.owner_id = auth.uid()
-    )
-  );
+  FOR SELECT USING (user_id = auth.uid());
 
 -- ── 3. Fix documents_update — allow editors to update title ─────────────────
 -- Old policy: only owner can update.

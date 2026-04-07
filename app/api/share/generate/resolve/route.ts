@@ -1,7 +1,15 @@
 export const dynamic = 'force-dynamic'
-// app/api/share/resolve/route.ts
+// app/api/share/generate/resolve/route.ts
+// Uses the service-role admin client to bypass RLS — unauthenticated share viewers
+// have no session, so the normal SSR client is blocked from reading share_links / documents.
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
+
+// Service-role client — bypasses RLS for read-only token resolution.
+const adminDb = createSupabaseAdmin(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,9 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing token' }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: link, error } = await supabase
+    const { data: link, error } = await adminDb
       .from('share_links')
       .select('doc_id, permission')
       .eq('token', token)
@@ -22,7 +28,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired share link' }, { status: 404 })
     }
 
-    const { data: doc, error: docError } = await supabase
+    const { data: doc, error: docError } = await adminDb
       .from('documents')
       .select('id, title')
       .eq('id', link.doc_id)

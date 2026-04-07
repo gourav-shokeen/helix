@@ -1,25 +1,23 @@
 // app/api/documents/route.ts
-// Server-side document CRUD — uses service role key to bypass RLS,
-// since next-auth JWT sessions have no Supabase auth.uid() context.
+// Server-side document CRUD — uses Supabase SSR client with cookie-based auth.
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/auth'
-import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createClient } from '@/lib/supabase/server'
 
 // GET /api/documents?type=document|journal
 // Returns docs the user owns + docs they are a member of (shared with them).
 export async function GET(request: NextRequest) {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
+    const userId = user.id
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') ?? 'document'
 
     // Fetch owned docs
-    const { data: ownedDocs, error: ownedError } = await supabaseAdmin
+    const { data: ownedDocs, error: ownedError } = await supabase
         .from('documents')
         .select('*')
         .eq('owner_id', userId)
@@ -32,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch doc IDs where user is a member (but not the owner)
-    const { data: memberRows, error: memberError } = await supabaseAdmin
+    const { data: memberRows, error: memberError } = await supabase
         .from('document_members')
         .select('document_id')
         .eq('user_id', userId)
@@ -50,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     let sharedDocs: any[] = []
     if (memberDocIds.length > 0) {
-        const { data: shared, error: sharedError } = await supabaseAdmin
+        const { data: shared, error: sharedError } = await supabase
             .from('documents')
             .select('*')
             .in('id', memberDocIds)
@@ -69,12 +67,13 @@ export async function GET(request: NextRequest) {
 
 // POST /api/documents — create a new document
 export async function POST(request: NextRequest) {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const ownerId = session.user.id
+    const ownerId = user.id
     const body = await request.json()
     const { title, type = 'document', journalDate } = body
 
@@ -87,7 +86,7 @@ export async function POST(request: NextRequest) {
     if (journalDate) docData.journal_date = journalDate
 
     // Insert the document
-    const { data: doc, error: docError } = await supabaseAdmin
+    const { data: doc, error: docError } = await supabase
         .from('documents')
         .insert(docData)
         .select()
@@ -101,17 +100,17 @@ export async function POST(request: NextRequest) {
     // Upsert the owner membership row.
     // The DB trigger (trg_ensure_owner_membership) may have already inserted
     // this row — using upsert ensures we don't get a duplicate-key error.
-    const { error: memberError } = await supabaseAdmin
+    const { error: memberError } = await supabase
         .from('document_members')
         .upsert(
             { document_id: doc.id, user_id: ownerId, role: 'owner' },
-            { onConflict: 'document_id,user_id', ignoreDuplicates: true }
+            { onConflict: 'document_id,user_id' }
         )
 
     if (memberError) {
         console.error('[api/documents POST] upsert member:', memberError.message)
         // Best-effort: delete the dangling doc if member upsert fails
-        await supabaseAdmin.from('documents').delete().eq('id', doc.id)
+        await supabase.from('documents').delete().eq('id', doc.id)
         return NextResponse.json({ error: memberError.message }, { status: 500 })
     }
 
@@ -122,8 +121,9 @@ export async function POST(request: NextRequest) {
 // title: any member with owner OR editor role may update
 // is_public: only the document owner may toggle
 export async function PATCH(request: NextRequest) {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -135,11 +135,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Resolve the caller's role for this document
-    const { data: membership } = await supabaseAdmin
+    const { data: membership } = await supabase
         .from('document_members')
         .select('role')
         .eq('document_id', id)
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .single()
 
     const role = membership?.role ?? null
@@ -166,7 +166,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
         .from('documents')
         .update(updates)
         .eq('id', id)
@@ -183,8 +183,9 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/documents?id=<uuid>
 export async function DELETE(request: NextRequest) {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -195,11 +196,11 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
         .from('documents')
         .delete()
         .eq('id', id)
-        .eq('owner_id', session.user.id) // ownership check
+        .eq('owner_id', user.id) // ownership check
 
     if (error) {
         console.error('[api/documents DELETE]', error.message)

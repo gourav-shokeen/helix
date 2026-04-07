@@ -373,17 +373,24 @@ export function Editor({
     import('y-websocket').then(async (mod: any) => {
       if (cancelled) { ydoc.destroy(); return }
 
-      // Attach the session JWT so the WS server can validate the connection
-      let wsUrl = WS_URL
+      // Get session JWT for WS auth
+      let token: string | null = null
       try {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
-        if (session?.access_token) {
-          wsUrl = `${WS_URL}?token=${encodeURIComponent(session.access_token)}`
-        }
-      } catch { /* non-fatal — server will reject if token is missing */ }
+        token = session?.access_token ?? null
+      } catch { /* non-fatal */ }
 
-      const provider = new mod.WebsocketProvider(wsUrl, documentId, ydoc)
+      // Pass token as a query param via WebsocketProvider's params option.
+      // DO NOT embed it in the base URL — y-websocket appends "/<room>" after
+      // the base URL, so embedding the token there produces a malformed path
+      // like ws://host?token=xxx/<documentId> which the server can't parse.
+      const provider = new mod.WebsocketProvider(
+        WS_URL,
+        documentId,
+        ydoc,
+        { params: token ? { token } : {} }
+      )
       providerRef.current = provider
 
       const color = CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)]
@@ -409,6 +416,7 @@ export function Editor({
         }
       }, 3000)
     })
+
 
     return () => {
       cancelled = true

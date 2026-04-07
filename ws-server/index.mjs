@@ -182,6 +182,8 @@ wss.on('connection', async (ws, req) => {
     return
   }
 
+  console.log(`[ws] connection: room=${docName}`)
+
   const entry = getYDoc(docName)
 
   // Load historical updates from Supabase (no-op after first load)
@@ -189,13 +191,6 @@ wss.on('connection', async (ws, req) => {
 
   // Register connection
   entry.conns.set(ws, new Set())
-
-  // Persist future updates on this doc
-  const updateHandler = (update, origin) => {
-    if (origin === ws) return // we handle this in onmessage
-    broadcastUpdate(entry, update, null)
-  }
-  entry.ydoc.on('update', updateHandler)
 
   // Send sync step 1 to new client
   sendSyncStep1(ws, entry.ydoc)
@@ -261,11 +256,10 @@ wss.on('connection', async (ws, req) => {
   })
 
   ws.on('close', () => {
-    entry.ydoc.off('update', updateHandler)
     entry.conns.delete(ws)
     // Remove awareness for this client
     awarenessProtocol.removeAwarenessStates(entry.awareness, [entry.ydoc.clientID], null)
-    // Clean up if no more connections
+    // Clean up in-memory doc if no more connections
     if (entry.conns.size === 0) {
       docs.delete(docName)
     }

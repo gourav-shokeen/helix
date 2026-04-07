@@ -1,111 +1,103 @@
 // ws-server/index.mjs
-// y-websocket server with Supabase persistence.
-// Loads historical Yjs updates on first connection, persists all changes.
+// Yjs WebSocket server with Supabase persistence.
+// Uses y-websocket's setPersistence API:
+//   - bindState  → load all historical updates from Supabase when a room opens
+//   - ydoc 'update' listener → save every new edit to Supabase
+//   - setupWSConnection → handles the full Yjs sync protocol
 //
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import * as Y from 'yjs'
-import * as syncProtocol from 'y-protocols/sync'
-import * as awarenessProtocol from 'y-protocols/awareness'
-import * as encoding from 'lib0/encoding'
-import * as decoding from 'lib0/decoding'
-import * as map from 'lib0/map'
+import { createClient } from '@supabase/supabase-js'
 
 const PORT = process.env.PORT || 1234
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
 
-// ── Message type constants (matching y-websocket protocol) ────────────────────
-const messageSync = 0
-const messageAwareness = 1
-
-// ── In-memory doc store ───────────────────────────────────────────────────────
-// { docName -> { ydoc, awareness, conns: Map<ws, Set>, loaded: bool } }
-const docs = new Map()
-
-function getYDoc(docName) {
-  return map.setIfUndefined(docs, docName, () => {
-    const ydoc = new Y.Doc()
-    const awareness = new awarenessProtocol.Awareness(ydoc)
-    awareness.setLocalState(null)
-    const entry = { ydoc, awareness, conns: new Map(), loaded: false }
-    docs.set(docName, entry)
-    return entry
-  })
+// ── Startup env check ─────────────────────────────────────────────────────────
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('[ws] MISSING SUPABASE ENV VARS — persistence disabled')
 }
 
-// ── Supabase helpers (service role key — bypass RLS) ─────────────────────────
-async function loadUpdatesFromSupabase(docName) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return []
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/document_updates?document_id=eq.${encodeURIComponent(docName)}&select=update_data&order=created_at.asc`,
-      {
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-      }
-    )
-    if (!res.ok) return []
-    const rows = await res.json()
-    return Array.isArray(rows) ? rows : []
-  } catch (e) {
-    console.error('[ws] loadUpdates error:', e)
-    return []
+// ── Supabase client (service role key — bypasses RLS for server-side ops) ─────
+// Created lazily to avoid crash when env vars are missing (e.g. local dev without .env)
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null
+
+// ── Load y-websocket utils ────────────────────────────────────────────────────
+const ywsPath = new URL('./node_modules/y-websocket/bin/utils.cjs', import.meta.url)
+const { setupWSConnection, setPersistence } = await import(ywsPath.href)
+
+// ── Decode bytea from PostgREST (base64 string or array) ─────────────────────
+function decodeUpdateData(raw) {
+  if (!raw) return null
+  if (typeof raw === 'string') {
+    // PostgREST returns bytea as base64 string
+    return Buffer.from(raw, 'base64')
   }
+  if (raw instanceof Uint8Array || Buffer.isBuffer(raw)) return raw
+  if (Array.isArray(raw)) return new Uint8Array(raw)
+  return null
 }
 
-async function saveUpdateToSupabase(docName, updateData) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/document_updates`, {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({
-        document_id: docName,
-        // Store as base64 string so it survives JSON transport
-        update_data: Buffer.from(updateData).toString('base64'),
-      }),
-    })
-  } catch (e) {
-    console.error('[ws] saveUpdate error:', e)
-  }
-}
+// ── Register Supabase persistence with y-websocket ────────────────────────────
+// bindState is called once per room, before any sync messages are sent.
+// This is the correct place to hydrate the ydoc from Supabase.
+setPersistence({
+  bindState: async (docName, ydoc) => {
+    if (!supabase) return
 
-// ── Load historical updates into ydoc (once per doc) ─────────────────────────
-async function ensureLoaded(entry, docName) {
-  if (entry.loaded) return
-  entry.loaded = true // set early to prevent double-loading on concurrent connections
-  const rows = await loadUpdatesFromSupabase(docName)
-  if (rows.length === 0) return
-  for (const row of rows) {
-    try {
-      let updateData
-      if (typeof row.update_data === 'string') {
-        // base64 string
-        updateData = Buffer.from(row.update_data, 'base64')
-      } else if (Array.isArray(row.update_data)) {
-        // numeric array (stored via older format)
-        updateData = Uint8Array.from(row.update_data)
-      } else {
-        continue
-      }
-      Y.applyUpdate(entry.ydoc, updateData)
-    } catch (e) {
-      console.error('[ws] applyUpdate error for', docName, e)
+    // Load ALL persisted updates in insertion order
+    const { data, error } = await supabase
+      .from('document_updates')
+      .select('update_data')
+      .eq('document_id', docName)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error(`[ws] failed to load updates for ${docName}:`, error.message)
+      return
     }
-  }
-  console.log(`[ws] Loaded ${rows.length} updates for ${docName}`)
-}
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+    if (data?.length) {
+      for (const row of data) {
+        try {
+          const update = decodeUpdateData(row.update_data)
+          if (update) Y.applyUpdate(ydoc, update)
+        } catch (e) {
+          console.error('[ws] applyUpdate error:', e)
+        }
+      }
+      console.log(`[ws] loaded ${data.length} updates for room=${docName}`)
+    }
+
+    // Persist every future update to Supabase
+    ydoc.on('update', async (update) => {
+      if (!supabase) return
+      try {
+        // PostgREST accepts bytea as a base64 string in JSON bodies
+        const { error: insertError } = await supabase
+          .from('document_updates')
+          .insert({
+            document_id: docName,
+            update_data: Buffer.from(update).toString('base64'),
+          })
+        if (insertError) {
+          console.error('[ws] failed to save update:', insertError.message)
+        }
+      } catch (e) {
+        console.error('[ws] save error:', e)
+      }
+    })
+  },
+
+  // Called when the last connection to a room closes — no-op since we persist per-update
+  writeState: (_docName, _ydoc) => Promise.resolve(),
+})
+
+// ── JWT validation via Supabase Auth REST ─────────────────────────────────────
 async function validateJwt(token) {
   if (!token || !SUPABASE_URL || !SUPABASE_ANON_KEY) return false
   try {
@@ -121,41 +113,8 @@ async function validateJwt(token) {
   }
 }
 
-// ── Send a sync message to a single connection ────────────────────────────────
-function send(conn, message) {
-  if (conn.readyState === conn.OPEN) {
-    try { conn.send(message) } catch { /* ignore */ }
-  }
-}
-
-// ── Sync protocol helpers ─────────────────────────────────────────────────────
-function sendSyncStep1(conn, ydoc) {
-  const encoder = encoding.createEncoder()
-  encoding.writeVarUint(encoder, messageSync)
-  syncProtocol.writeSyncStep1(encoder, ydoc)
-  send(conn, encoding.toUint8Array(encoder))
-}
-
-function sendSyncStep2(conn, ydoc, encodedStateVector) {
-  const encoder = encoding.createEncoder()
-  encoding.writeVarUint(encoder, messageSync)
-  syncProtocol.writeSyncStep2(encoder, ydoc, encodedStateVector)
-  send(conn, encoding.toUint8Array(encoder))
-}
-
-function broadcastUpdate(entry, update, origin) {
-  const encoder = encoding.createEncoder()
-  encoding.writeVarUint(encoder, messageSync)
-  syncProtocol.writeUpdate(encoder, update)
-  const message = encoding.toUint8Array(encoder)
-  entry.conns.forEach((_, conn) => {
-    if (conn !== origin) send(conn, message)
-  })
-}
-
-// ── WebSocket connection handler ──────────────────────────────────────────────
+// ── HTTP server (health check) + WebSocket server ────────────────────────────
 const server = createServer((req, res) => {
-  // Health check
   res.writeHead(200)
   res.end('ok')
 })
@@ -169,106 +128,28 @@ wss.on('connection', async (ws, req) => {
   try {
     const url = new URL(req.url || '/', `http://localhost:${PORT}`)
     jwt = url.searchParams.get('token')
+    // y-websocket client connects to ws://<host>/<documentId>?token=<jwt>
     docName = url.pathname.slice(1) || 'default'
   } catch {
     ws.close(4000, 'Bad request')
     return
   }
 
-  // Auth check
+  console.log(`[ws] connection: room=${docName}`)
+
+  // Reject unauthenticated connections
   const valid = await validateJwt(jwt)
   if (!valid) {
+    console.warn(`[ws] unauthorized connection attempt for room=${docName}`)
     ws.close(4001, 'Unauthorized')
     return
   }
 
-  console.log(`[ws] connection: room=${docName}`)
-
-  const entry = getYDoc(docName)
-
-  // Load historical updates from Supabase (no-op after first load)
-  await ensureLoaded(entry, docName)
-
-  // Register connection
-  entry.conns.set(ws, new Set())
-
-  // Send sync step 1 to new client
-  sendSyncStep1(ws, entry.ydoc)
-
-  // Send current awareness state
-  const awarenessStates = entry.awareness.getStates()
-  if (awarenessStates.size > 0) {
-    const encoder = encoding.createEncoder()
-    encoding.writeVarUint(encoder, messageAwareness)
-    encoding.writeVarUint8Array(
-      encoder,
-      awarenessProtocol.encodeAwarenessUpdate(entry.awareness, Array.from(awarenessStates.keys()))
-    )
-    send(ws, encoding.toUint8Array(encoder))
-  }
-
-  ws.on('message', async (data) => {
-    const msg = new Uint8Array(data)
-    try {
-      const decoder = decoding.createDecoder(msg)
-      const messageType = decoding.readVarUint(decoder)
-
-      if (messageType === messageSync) {
-        const encoder = encoding.createEncoder()
-        encoding.writeVarUint(encoder, messageSync)
-        const syncMessageType = syncProtocol.readSyncMessage(decoder, encoder, entry.ydoc, ws)
-
-        // If this was an update (type 2), persist it and broadcast
-        if (syncMessageType === 2) {
-          // Re-decode to get raw update bytes for storage
-          const updateDecoder = decoding.createDecoder(msg)
-          decoding.readVarUint(updateDecoder) // messageSync
-          decoding.readVarUint(updateDecoder) // messageYjsSyncUpdate (2)
-          const rawUpdate = decoding.readVarUint8Array(updateDecoder)
-          // Persist to Supabase
-          saveUpdateToSupabase(docName, rawUpdate)
-          // Apply to local ydoc
-          Y.applyUpdate(entry.ydoc, rawUpdate, ws)
-          // Broadcast to others
-          broadcastUpdate(entry, rawUpdate, ws)
-        }
-
-        // Send back step2 if needed
-        if (encoding.length(encoder) > 1) {
-          send(ws, encoding.toUint8Array(encoder))
-        }
-      } else if (messageType === messageAwareness) {
-        // Decode and broadcast awareness
-        const update = decoding.readVarUint8Array(decoder)
-        awarenessProtocol.applyAwarenessUpdate(entry.awareness, update, ws)
-        // Broadcast to all including sender
-        const encodedAwareness = encoding.createEncoder()
-        encoding.writeVarUint(encodedAwareness, messageAwareness)
-        encoding.writeVarUint8Array(encodedAwareness, update)
-        const awarenessMsg = encoding.toUint8Array(encodedAwareness)
-        entry.conns.forEach((_, conn) => {
-          if (conn !== ws) send(conn, awarenessMsg)
-        })
-      }
-    } catch (e) {
-      console.error('[ws] message error:', e)
-    }
-  })
-
-  ws.on('close', () => {
-    entry.conns.delete(ws)
-    // Remove awareness for this client
-    awarenessProtocol.removeAwarenessStates(entry.awareness, [entry.ydoc.clientID], null)
-    // Clean up in-memory doc if no more connections
-    if (entry.conns.size === 0) {
-      docs.delete(docName)
-    }
-  })
-
-  ws.on('error', (e) => {
-    console.error('[ws] socket error:', e)
-    entry.conns.delete(ws)
-  })
+  // setupWSConnection handles the full Yjs sync protocol (step1/step2/update/awareness).
+  // It will call our bindState hook on first connection to this room.
+  setupWSConnection(ws, req, { docName })
 })
 
-server.listen(PORT, () => console.log(`✅ WS server with Supabase persistence running on port ${PORT}`))
+server.listen(PORT, () =>
+  console.log(`✅ WS server with Supabase persistence running on port ${PORT}`)
+)

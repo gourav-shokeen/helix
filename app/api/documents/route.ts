@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         .from('document_members')
         .upsert(
             { document_id: doc.id, user_id: ownerId, role: 'owner' },
-            { onConflict: 'document_id,user_id' }
+            { onConflict: 'document_id,user_id', ignoreDuplicates: true }
         )
 
     if (memberError) {

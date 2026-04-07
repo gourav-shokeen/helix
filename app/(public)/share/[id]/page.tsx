@@ -72,8 +72,11 @@ export default async function SharePage({ params }: Props) {
         redirect(`/login?next=/share/${id}`)
       }
 
-      // Logged-in user with edit permission → upsert membership then go to editor
-      await supabase
+      // Logged-in user with edit permission → upsert membership then go to editor.
+      // MUST use adminDb (service role) here — the RLS policy on document_members
+      // only allows insert when auth.uid() is the document OWNER. The collaborator
+      // is NOT the owner, so supabase (SSR anon/user client) would silently fail.
+      await adminDb
         .from('document_members')
         .upsert(
           { document_id: link.doc_id, user_id: user.id, role: 'editor' },

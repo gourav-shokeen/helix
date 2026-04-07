@@ -12,14 +12,20 @@ export const CURSOR_COLORS = [
 export const APP_NAME = 'Helix'
 export const APP_TAGLINE = 'Plan. Code. Collaborate.'
 
-const _RAW_WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:1234'
+// Returns the WS URL, always upgrading ws:// → wss:// when on HTTPS.
+// Computed as a function so it is ALWAYS evaluated at call-time in the browser,
+// never frozen to a ws:// value during SSR (where window is undefined).
+export function getWsUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:1234'
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return raw.replace(/^ws:\/\//, 'wss://')
+  }
+  return raw
+}
 
-// Auto-upgrade ws:// → wss:// when the page is served over HTTPS.
-// Browsers block mixed content (ws:// from an https:// page) with a SecurityError.
-export const WS_URL =
-  typeof window !== 'undefined' && window.location.protocol === 'https:'
-    ? _RAW_WS_URL.replace(/^ws:\/\//, 'wss://')
-    : _RAW_WS_URL
+// Convenience constant — safe to use only in client components after hydration.
+// Prefer getWsUrl() in useEffect / dynamic import callbacks for correctness.
+export const WS_URL = getWsUrl()
 
 export const SLASH_COMMANDS = [
     { id: 'code', icon: '⌥', title: 'Code block', desc: 'Syntax-highlighted code' },

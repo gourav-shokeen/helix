@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePomodoro } from '@/hooks/usePomodoro'
 import { useFocusMode } from '@/hooks/useFocusMode'
 import { usePresence } from '@/hooks/usePresence'
-import { getDocument, getMyDocuments, deleteDocument, createDocument, updateDocumentTitle } from '@/lib/supabase/documents'
+import { getMyDocuments, deleteDocument, createDocument, updateDocumentTitle } from '@/lib/supabase/documents'
 import { getBoardById } from '@/lib/supabase/projects'
 import { downloadFile } from '@/lib/utils'
 import { renderDiagramsForExport } from '@/lib/diagramExport'  // ✅ NEW
@@ -95,12 +95,16 @@ export default function DocPage() {
   }, [loading, user, router])
 
   useEffect(() => {
-    if (!id) return
-    getDocument(id).then(({ data }) => {
-      const doc = data as Document ?? null
-      setCurrentDoc(doc)
-    })
-  }, [id])
+    // Use the server-side API route which has SSR cookie-based auth.
+    // This works reliably for collaborators: the browser Supabase client can
+    // miss the auth session on first render (timing race), causing the RLS
+    // member check to fail and returning null → title shows "Untitled".
+    if (!id || !user) return
+    fetch(`/api/documents/${id}`)
+      .then(res => res.ok ? res.json() : Promise.reject(res.status))
+      .then(({ document }) => setCurrentDoc(document as Document ?? null))
+      .catch(err => console.error('[DocPage] fetch document error:', err))
+  }, [id, user])
 
   useEffect(() => {
     if (!user) return

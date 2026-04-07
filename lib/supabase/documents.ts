@@ -37,10 +37,14 @@ export async function createDocument(
 
 export async function getMyDocuments(userId: string) {
     const supabase = createClient()
+    // Query via document_members so we get both owned docs AND docs the user
+    // has been added to as an editor/viewer via a share link.
+    // The owner always has a row in document_members (inserted on createDocument),
+    // so this returns everything the user should see in their sidebar.
     return supabase
         .from('documents')
-        .select('*')
-        .eq('owner_id', userId)
+        .select('*, document_members!inner(user_id, role)')
+        .eq('document_members.user_id', userId)
         .eq('type', 'document')
         .order('updated_at', { ascending: false })
 }

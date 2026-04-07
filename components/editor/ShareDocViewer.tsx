@@ -2,7 +2,7 @@
 // components/editor/ShareDocViewer.tsx
 // Mounts a real Tiptap editor synced via WebSocket for unauthenticated share viewers.
 // Uses the share token UUID as the WS auth token (validated server-side via share_links table).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Collaboration } from '@tiptap/extension-collaboration'
@@ -14,7 +14,10 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import * as Y from 'yjs'
-import { WS_URL } from '@/lib/constants'
+// getWsUrl() is called at runtime inside useEffect (browser context) so
+// it always has access to window.location.protocol and correctly returns wss://
+// when the page is served over HTTPS (e.g. Vercel production).
+import { getWsUrl } from '@/lib/constants'
 
 interface ShareDocViewerProps {
   docId: string      // document UUID — the WS room name
@@ -23,18 +26,31 @@ interface ShareDocViewerProps {
 
 export function ShareDocViewer({ docId, shareToken }: ShareDocViewerProps) {
   const [synced, setSynced] = useState(false)
-  const [ydoc] = useState(() => new Y.Doc())
+  // Keep ydoc stable for the lifetime of this component — do NOT destroy it in
+  // useEffect cleanup because the Tiptap Collaboration extension holds a reference
+  // to it and destroying it would wipe the editor content.
+  const ydocRef = useRef<Y.Doc>(new Y.Doc())
+  const ydoc = ydocRef.current
 
   useEffect(() => {
     let provider: any = null
     let cancelled = false
 
+    // getWsUrl() is called here (inside useEffect = browser) so window is always defined.
+    // This ensures ws:// is upgraded to wss:// on HTTPS (Vercel production).
+    const wsUrl = getWsUrl()
+    console.log('[ShareDocViewer] connecting to', wsUrl, 'room', docId)
+
     // Dynamic import to avoid SSR issues
     import('y-websocket').then((mod) => {
       if (cancelled) return
 
-      provider = new mod.WebsocketProvider(WS_URL, docId, ydoc, {
+      provider = new mod.WebsocketProvider(wsUrl, docId, ydoc, {
         params: { token: shareToken },
+      })
+
+      provider.on('status', (event: { status: string }) => {
+        console.log('[ShareDocViewer] WS status:', event.status)
       })
 
       const onSync = (isSynced: boolean) => {

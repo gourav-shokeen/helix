@@ -138,7 +138,7 @@ function ReadOnlyView({ docId, title, permission, shareToken }: { docId: string;
         <span style={{ marginLeft: 4, fontSize: 10, color: '#444', background: '#1a1a2e', border: '1px solid #2a2a3e', padding: '2px 6px', borderRadius: 3 }}>
           read-only
         </span>
-        <a href="/login" style={{ ...accentBtnStyle, marginLeft: 'auto', flexShrink: 0 }}>Open in Helix</a>
+        <a href={`/doc/${docId}`} style={{ ...accentBtnStyle, marginLeft: 'auto', flexShrink: 0 }}>Open in Helix</a>
       </header>
 
       {/* Document content — rendered via Tiptap + Yjs WS sync */}

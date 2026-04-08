@@ -42,11 +42,3 @@ export const POMODORO = {
     LONG_BREAK_MINUTES: 15,
     CYCLES_BEFORE_LONG: 4,
 }
-
-export const DAILY_PROMPTS = [
-    'What did you ship today?',
-    'What took longer than expected?',
-    'What do you want to remember tomorrow?',
-    'What blocked you? How did you get past it?',
-    'What are you proud of from today?',
-]

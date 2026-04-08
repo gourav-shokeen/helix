@@ -5,7 +5,6 @@ import { useAuthStore } from '@/store/authStore'
 
 interface ShareModalProps {
   docId: string
-  isPublic: boolean
   onClose: () => void
 }
 

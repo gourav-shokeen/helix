@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { doc_id, anchor_text, selected_range } = body
+    const { doc_id, anchor_text } = body
 
     if (!doc_id || !anchor_text) {
       return NextResponse.json({ error: 'Missing doc_id or anchor_text' }, { status: 400 })

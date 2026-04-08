@@ -14,7 +14,6 @@ interface TopBarProps {
   onTitleChange: (title: string) => void
   onlineUsers?: User[]
   onShareClick?: () => void
-  onHistoryClick?: () => void
   onCommandClick?: () => void
   onExportMd?: () => void
   onExportDocx?: () => void
@@ -33,7 +32,6 @@ export function TopBar({
   onTitleChange,
   onlineUsers = [],
   onShareClick,
-  onHistoryClick,
   onCommandClick,
   onExportMd,
   onExportDocx,
@@ -238,9 +236,6 @@ export function TopBar({
             {onShareClick && (
               <button onClick={onShareClick} className="helix-hover" style={btnStyle}>↗ share</button>
             )}
-            {onHistoryClick && (
-              <button onClick={onHistoryClick} className="helix-hover" style={btnStyle}>◷ history</button>
-            )}
 
             {(onExportMd || onExportDocx || onExportPdf || onExportCsv || onGenerateReadme) && (
               <div ref={exportRef} style={{ position: 'relative' }}>
@@ -310,7 +305,7 @@ export function TopBar({
         )}
 
         {/* ── Mobile overflow "···" menu ── */}
-        {isMobile && (onShareClick || onHistoryClick || onExportMd || onExportDocx || onExportPdf || onExportCsv || onGenerateReadme || onDeleteDoc || onCommandClick) && (
+        {isMobile && (onShareClick || onExportMd || onExportDocx || onExportPdf || onExportCsv || onGenerateReadme || onDeleteDoc || onCommandClick) && (
           <div ref={overflowRef} style={{ position: 'relative' }}>
             <button
               onClick={() => setOverflowOpen((v) => !v)}
@@ -346,9 +341,6 @@ export function TopBar({
               >
                 {onShareClick && (
                   <button onClick={() => { onShareClick(); setOverflowOpen(false) }} style={dropItemStyle}>↗ share</button>
-                )}
-                {onHistoryClick && (
-                  <button onClick={() => { onHistoryClick(); setOverflowOpen(false) }} style={dropItemStyle}>◷ history</button>
                 )}
                 {onExportDocx && (
                   <button onClick={() => { onExportDocx(); setOverflowOpen(false) }} style={dropItemStyle}>↓ Word (.docx)</button>

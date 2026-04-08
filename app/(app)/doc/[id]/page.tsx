@@ -397,7 +397,7 @@ export default function DocPage() {
       )}
 
       {shareOpen && currentDoc && (
-        <ShareModal docId={id} isPublic={currentDoc.is_public} onClose={() => setShareOpen(false)} />
+        <ShareModal docId={id} onClose={() => setShareOpen(false)} />
       )}
 
       {/* README modal */}

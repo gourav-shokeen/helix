@@ -116,10 +116,6 @@ export default function DocPage() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCommandOpen(true) }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'F') { e.preventDefault(); toggleFocus() }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'G') { e.preventDefault(); router.push('/graph') }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'B') {
-        e.preventDefault()
-        window.dispatchEvent(new CustomEvent('helix:brain:open'))
-      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)

@@ -82,11 +82,9 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
     const onOpen = () => { setModalOpen(true); setPos(null) }
     const onClose = () => setModalOpen(false)
     window.addEventListener('helix:diagram:edit', onOpen)
-    window.addEventListener('helix:brain:open', onOpen)
     window.addEventListener('helix:modal:close', onClose)
     return () => {
       window.removeEventListener('helix:diagram:edit', onOpen)
-      window.removeEventListener('helix:brain:open', onOpen)
       window.removeEventListener('helix:modal:close', onClose)
     }
   }, [])

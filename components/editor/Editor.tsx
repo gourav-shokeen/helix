@@ -85,7 +85,6 @@ interface EditorProps {
   user: User
   onWordCount?: (count: number) => void
   onProviderReady?: (provider: unknown) => void
-  onOpenBrain?: () => void
   onOpenDiagram?: () => void
   onDiagramReady?: (fn: (syntax: string) => void) => void
   onDiagramUpdateReady?: (fn: (id: string, dsl: string) => void) => void
@@ -103,7 +102,6 @@ function TiptapEditor({
   readOnly,
   githubRepo,
   onWordCount,
-  onOpenBrain,
   onOpenDiagram,
   onDiagramReady,
   onDiagramUpdateReady,
@@ -117,7 +115,6 @@ function TiptapEditor({
   readOnly: boolean
   githubRepo?: string | null
   onWordCount?: (count: number) => void
-  onOpenBrain?: () => void
   onOpenDiagram?: () => void
   onDiagramReady?: (fn: (syntax: string) => void) => void
   onDiagramUpdateReady?: (fn: (id: string, dsl: string) => void) => void
@@ -328,10 +325,9 @@ function TiptapEditor({
       {/* ✅ CHANGE 4: Toolbar rendered above EditorContent, hidden in readOnly mode */}
       {!readOnly && <EditorToolbar editor={editor} />}
       <EditorContent editor={editor} style={{ width: '100%' }} />
-      {editor && !readOnly && onOpenBrain && (
+      {editor && !readOnly && (
         <SlashMenu
           editor={editor}
-          onOpenBrain={onOpenBrain}
           onOpenDiagram={onOpenDiagram}
           projectId={projectId}
         />
@@ -346,7 +342,6 @@ export function Editor({
   user,
   onWordCount,
   onProviderReady,
-  onOpenBrain,
   onOpenDiagram,
   onDiagramReady,
   onDiagramUpdateReady,
@@ -470,7 +465,6 @@ export function Editor({
           readOnly={readOnly}
           githubRepo={githubRepo}
           onWordCount={onWordCount}
-          onOpenBrain={onOpenBrain}
           onOpenDiagram={onOpenDiagram}
           onDiagramReady={onDiagramReady}
           onDiagramUpdateReady={onDiagramUpdateReady}

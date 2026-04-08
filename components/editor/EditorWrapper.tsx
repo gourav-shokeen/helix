@@ -6,7 +6,6 @@ import { Editor } from './Editor'
 import { SelectionCommentButton, ThreadSidebar, useCreateThread } from './CommentMark'
 import type { User } from '@/types'
 
-const BrainPanel = dynamic(() => import('./BrainPanel').then((mod) => mod.BrainPanel), { ssr: false })
 const DiagramModal = dynamic(() => import('./DiagramModal').then((mod) => mod.DiagramModal), { ssr: false })
 
 interface EditorWrapperProps {
@@ -20,28 +19,16 @@ interface EditorWrapperProps {
 }
 
 export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, readOnly, isFocused, githubRepo }: EditorWrapperProps) {
-  const [brainOpen, setBrainOpen] = useState(false)
-  const [brainCollapsed, setBrainCollapsed] = useState(false)
   const [diagramOpen, setDiagramOpen] = useState(false)
   const [diagramEditing, setDiagramEditing] = useState<{ id: string; dsl: string } | null>(null)
-  const [docContent, setDocContent] = useState('')
   const insertDiagramRef = useRef<((syntax: string) => void) | null>(null)
   const updateDiagramRef = useRef<((id: string, dsl: string) => void) | null>(null)
   const [threadsOpen, setThreadsOpen] = useState(false)
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
 
-  // How wide is the Brain panel right now?
-  const brainWidth = !brainOpen ? 0 : brainCollapsed ? 36 : 360
-
   useEffect(() => {
     if (isFocused) setThreadsOpen(false)
   }, [isFocused])
-
-  useEffect(() => {
-    const handler = () => { setBrainOpen(true); setBrainCollapsed(false) }
-    window.addEventListener('helix:brain:open', handler)
-    return () => window.removeEventListener('helix:brain:open', handler)
-  }, [])
 
   // Clicking a highlighted comment mark → open threads + activate that thread
   useEffect(() => {
@@ -55,13 +42,6 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
   }, [])
 
   const createThread = useCreateThread(documentId)
-
-  const handleOpenBrain = useCallback(() => {
-    const el = document.querySelector('.tiptap-editor')
-    setDocContent(el?.textContent ?? '')
-    setBrainOpen(true)
-    setBrainCollapsed(false)
-  }, [])
 
   const handleOpenDiagram = useCallback(() => {
     setDiagramEditing(null)
@@ -111,7 +91,7 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
     window.dispatchEvent(new CustomEvent('helix:threads:refresh'))
   }, [createThread])
 
-  const threadsBtnRight = threadsOpen ? `${284 + brainWidth}px` : `${4 + brainWidth}px`
+  const threadsBtnRight = threadsOpen ? '284px' : '4px'
 
   return (
     <div
@@ -124,7 +104,6 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
           user={user}
           onWordCount={onWordCount}
           onProviderReady={onProviderReady}
-          onOpenBrain={handleOpenBrain}
           onOpenDiagram={handleOpenDiagram}
           onDiagramReady={handleDiagramReady}
           onDiagramUpdateReady={handleDiagramUpdateReady}
@@ -172,15 +151,6 @@ export function EditorWrapper({ documentId, user, onWordCount, onProviderReady, 
           }}
           pendingThreadId={pendingThreadId}
           onPendingConsumed={() => setPendingThreadId(null)}
-        />
-      )}
-
-      {brainOpen && (
-        <BrainPanel
-          onClose={() => { setBrainOpen(false); setBrainCollapsed(false) }}
-          docContent={docContent}
-          collapsed={brainCollapsed}
-          onCollapsedChange={setBrainCollapsed}
         />
       )}
 

@@ -8,7 +8,6 @@ import { defaultBoardData } from './KanbanBoard'
 
 interface SlashMenuProps {
   editor: Editor
-  onOpenBrain: () => void
   onOpenDiagram?: () => void
   projectId: string
 }
@@ -26,7 +25,7 @@ function fuzzyMatch(query: string, target: string): boolean {
   return qi === q.length
 }
 
-export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: SlashMenuProps) {
+export function SlashMenu({ editor, onOpenDiagram, projectId }: SlashMenuProps) {
   const [visible, setVisible] = useState(false)
   const [query, setQuery] = useState('')
   const [pos, setPos] = useState<Position>({ top: 0, left: 0 })
@@ -96,12 +95,9 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
           editor.chain().focus().insertContent(html).run()
           break
         }
-        case 'brain':
-          onOpenBrain()
-          break
       }
     },
-    [editor, hide, onOpenBrain, onOpenDiagram, projectId]
+    [editor, hide, onOpenDiagram, projectId]
   )
 
   useEffect(() => {

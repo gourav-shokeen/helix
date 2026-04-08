@@ -32,8 +32,7 @@ export const SLASH_COMMANDS = [
     { id: 'todo', icon: '☐', title: 'Task list', desc: 'Checkable to-do items' },
     { id: 'diagram', icon: '◈', title: 'Diagram', desc: 'Mermaid flowchart, ER, sequence' },
     { id: 'kanban', icon: '▦', title: 'Kanban board', desc: 'Drag-and-drop board' },
-    { id: 'brain', icon: '⬡', title: 'Codebase Brain', desc: 'AI explains your code' },
-    { id: 'standup', icon: '◈', title: 'Standup template', desc: 'Daily standup format' },
+{ id: 'standup', icon: '◈', title: 'Standup template', desc: 'Daily standup format' },
     { id: 'table', icon: '▤', title: 'Table', desc: 'Editable data table' },
 ]
 

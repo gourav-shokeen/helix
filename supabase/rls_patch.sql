@@ -91,3 +91,17 @@ CREATE POLICY "project_boards_share_read" ON public.project_boards
       WHERE sl.doc_id::text = project_id::text
     )
   );
+
+-- ── 5. Enable Realtime for Kanban Boards ────────────────────────────────────
+-- project_boards needs to be added to the supabase_realtime publication
+-- otherwise the Kanban board subscription will never receive any postgres_changes.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'project_boards'
+  ) THEN
+    EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.project_boards;';
+  END IF;
+END $$;

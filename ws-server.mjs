@@ -145,6 +145,11 @@ const server = createServer((req, res) => { res.writeHead(200); res.end('ok') })
 const wss = new WebSocketServer({ server })
 
 wss.on('connection', async (ws, req) => {
+  // Buffer messages that arrive before setupWSConnection takes over
+  const messageBuffer = []
+  const handleTempMessage = (msg, isBinary) => messageBuffer.push({ msg, isBinary })
+  ws.on('message', handleTempMessage)
+
   let docName = 'default'
   let jwt = null
 
@@ -172,8 +177,14 @@ wss.on('connection', async (ws, req) => {
   // 2. Await full Supabase hydration — doc is full before step1 is sent
   await hydrateDoc(doc, docName)
 
-  // 3. Now let y-websocket handle step1/step2/updates/awareness
+  // 3. Remove temp listener and hand over to y-websocket
+  ws.off('message', handleTempMessage)
   setupWSConnection(ws, req, { docName })
+
+  // 4. Replay any buffered messages (like the client's initial SyncStep1)
+  for (const { msg, isBinary } of messageBuffer) {
+    ws.emit('message', msg, isBinary)
+  }
 })
 
 server.listen(PORT, () => console.log(`✅ WS server running on port ${PORT}`))

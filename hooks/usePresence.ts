@@ -29,18 +29,27 @@ export function usePresence(provider: any): User[] {
 
         // Debounce awareness changes by 200ms.
         // Without this, rapid join/leave events (e.g. when a share viewer connects
-        // via StrictMode double-mount) cause multiple re-renders in quick succession,
-        // making the owner's avatar circle appear to blink/flash.
+        // via StrictMode double-mount) cause multiple re-renders in quick succession.
+        // We also use JSON.stringify to prevent new array references from triggering
+        // a re-render when the actual user list and their colors haven't changed!
         const update = () => {
             if (timerRef.current) clearTimeout(timerRef.current)
             timerRef.current = setTimeout(() => {
-                setUsers(getOnlineUsers())
+                const nextUsers = getOnlineUsers()
+                setUsers((prev) => {
+                    const prevStr = JSON.stringify(prev)
+                    const nextStr = JSON.stringify(nextUsers)
+                    return prevStr === nextStr ? prev : nextUsers
+                })
             }, 200)
         }
 
         provider.awareness.on('change', update)
         // Run immediately (without debounce) for the first paint
-        setUsers(getOnlineUsers())
+        setUsers((prev) => {
+            const nextUsers = getOnlineUsers()
+            return JSON.stringify(prev) === JSON.stringify(nextUsers) ? prev : nextUsers
+        })
 
         return () => {
             provider.awareness.off('change', update)

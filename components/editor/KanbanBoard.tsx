@@ -128,11 +128,14 @@ export const KanbanBoard = React.memo(function KanbanBoard({ boardId, projectId,
     const channel = supabase
       .channel(`board:${boardId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_boards', filter: `id=eq.${boardId}` }, payload => {
+        console.log('[kanban] received realtime payload:', payload)
         const next = mergeData((payload.new as { data?: unknown })?.data)
         setBoardData(next)
         onDataChange?.(next)
       })
-      .subscribe()
+      .subscribe((status, err) => {
+        console.log(`[kanban] realtime subscription status: ${status}`, err || '')
+      })
 
     return () => {
       supabase.removeChannel(channel)

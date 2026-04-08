@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -14,32 +14,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { docId, permission } = body
 
-    if (!docId || !permission || !['view', 'edit'].includes(permission)) {
-      return NextResponse.json({ error: 'Invalid docId or permission' }, { status: 400 })
+    if (!docId || permission !== 'edit') {
+      return NextResponse.json({ error: 'Only edit links are supported' }, { status: 400 })
     }
 
-    // Delete any existing link for this doc + permission pair to keep things clean
-    const { error: deleteError } = await supabase
-      .from('share_links')
-      .delete()
-      .eq('doc_id', docId)
-      .eq('permission', permission)
+    await supabase.from('share_links').delete().eq('doc_id', docId).eq('permission', 'edit')
 
-    if (deleteError) {
-      console.error('[share_links] Delete existing link failed:', deleteError)
-    }
-
-    // Use crypto.randomUUID() for token generation
     const token = crypto.randomUUID()
-    
+
     const { data, error } = await supabase
       .from('share_links')
-      .insert({ 
-        doc_id: docId, 
-        permission, 
-        created_by: user.id,
-        token 
-      })
+      .insert({ doc_id: docId, permission: 'edit', created_by: user.id, token })
       .select()
       .single()
 
@@ -49,16 +34,9 @@ export async function POST(request: NextRequest) {
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const shareUrl = `${baseUrl}/share/${token}`
-
-    return NextResponse.json({ 
-      success: true, 
-      link: data,
-      shareUrl
-    })
+    return NextResponse.json({ success: true, link: data, shareUrl: `${baseUrl}/share/${token}` })
   } catch (err) {
     console.error('[API] /api/share/generate error:', err)
-    const message = err instanceof Error ? err.message : 'Internal server error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal server error' }, { status: 500 })
   }
 }

@@ -194,7 +194,7 @@ export function SlashMenu({ editor, onOpenBrain, onOpenDiagram, projectId }: Sla
           onMouseEnter={() => setActive(i)}
         >
           <span style={{ fontSize: '15px', color: 'var(--accent)', flexShrink: 0, width: '20px', textAlign: 'center' }}>{cmd.icon}</span>
-          <span style={{ flex: 1, fontSize: '12px', color: 'var(--text-primary)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{cmd.title}</span>
+          <span style={{ flex: 1, fontSize: '12px', color: 'var(--text-primary)', fontWeight: 600, fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>{cmd.title}</span>
           <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0, maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.desc}</span>
         </button>
       ))}

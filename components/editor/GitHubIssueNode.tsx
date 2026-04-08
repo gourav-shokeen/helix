@@ -66,7 +66,7 @@ function GitHubIssueView({ node }: NodeViewProps) {
           whiteSpace: 'nowrap',
           verticalAlign: 'middle',
           lineHeight: 1.6,
-          fontFamily: 'JetBrains Mono, monospace',
+          fontFamily: 'var(--font-sans), system-ui, sans-serif',
         }}
         title={`GitHub Issue ${repo ? `(${repo})` : ''}`}
       >

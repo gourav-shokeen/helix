@@ -24,7 +24,7 @@ export default async function SharePage({ params }: Props) {
 
   if (!link) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d1a', color: '#888', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d1a', color: '#888', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 13 }}>
         🔒 Invalid or expired link.
       </div>
     )
@@ -45,7 +45,7 @@ export default async function SharePage({ params }: Props) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d1a', color: '#888', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d1a', color: '#888', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 13 }}>
       🔒 This link is no longer valid.
     </div>
   )

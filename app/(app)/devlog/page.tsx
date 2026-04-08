@@ -286,7 +286,7 @@ export default function DevLogPage() {
   if (loading || !user) return null
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'JetBrains Mono, monospace' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>
       <TopBar docTitle="Dev Log" onTitleChange={() => {}} showDoc />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <aside style={{ width: '240px', borderRight: '1px solid var(--border)', background: 'var(--surface)', overflowY: 'auto', flexShrink: 0 }}>
@@ -361,7 +361,7 @@ export default function DevLogPage() {
             <div style={{ marginTop: '0.9rem', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               <button
                 onClick={() => setAiOpen((prev) => !prev)}
-                style={{ width: '100%', background: 'var(--surface)', border: 'none', borderBottom: aiOpen ? '1px solid var(--border)' : 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, padding: '0.55rem 0.75rem' }}
+                style={{ width: '100%', background: 'var(--surface)', border: 'none', borderBottom: aiOpen ? '1px solid var(--border)' : 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, padding: '0.55rem 0.75rem' }}
               >
                 <span>AI</span>
                 <span>{aiOpen ? '−' : '+'}</span>
@@ -371,7 +371,7 @@ export default function DevLogPage() {
                 <div style={{ padding: '0.75rem' }}>
                   <button
                     onClick={() => setAiModalOpen(true)}
-                    style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 6, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, padding: '0.45rem 0.75rem' }}
+                    style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 6, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 11, padding: '0.45rem 0.75rem' }}
                   >
                     Generate from git commits
                   </button>
@@ -392,7 +392,7 @@ export default function DevLogPage() {
               value={commitInput}
               onChange={(event) => setCommitInput(event.target.value)}
               placeholder="a1b2c3d feat: add slash /brain&#10;d4e5f6a fix: realtime thread refresh&#10;..."
-              style={{ width: '100%', height: 220, background: 'var(--bg)', border: 'none', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, lineHeight: 1.6, outline: 'none', padding: '0.75rem' }}
+              style={{ width: '100%', height: 220, background: 'var(--bg)', border: 'none', color: 'var(--text-primary)', fontFamily: 'var(--font-mono), monospace', fontSize: 12, lineHeight: 1.6, outline: 'none', padding: '0.75rem' }}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '0.55rem 0.75rem', borderTop: '1px solid var(--border)' }}>
               <button onClick={() => setAiModalOpen(false)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, padding: '0.4rem 0.75rem' }}>Cancel</button>

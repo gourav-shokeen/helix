@@ -30,7 +30,7 @@ const EditorWrapper = dynamic(
         justifyContent: 'center',
         height: '100%',
         color: 'var(--text-muted)',
-        fontFamily: 'JetBrains Mono, monospace',
+        fontFamily: 'var(--font-sans), system-ui, sans-serif',
         fontSize: 12
       }}>
         loading editor...
@@ -195,7 +195,7 @@ export default function DocPage() {
           <style>
             @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;600;700&display=swap');
             *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 60px 80px; max-width: 860px; margin: 0 auto; }
+            body { font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 60px 80px; max-width: 860px; margin: 0 auto; }
             h1 { font-size: 2rem; font-weight: 700; margin: 1.5em 0 0.5em; }
             h2 { font-size: 1.4rem; font-weight: 600; margin: 1.2em 0 0.4em; }
             h3 { font-size: 1.1rem; font-weight: 600; margin: 1em 0 0.3em; color: #444; }
@@ -362,15 +362,15 @@ export default function DocPage() {
       {/* Focus mode — session complete overlay */}
       {isFocused && sessionOverlay === 'break' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,8,16,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#0d0d1a', border: '1px solid #2a2a3e', borderRadius: 12, padding: '36px 44px', textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', minWidth: 320 }}>
+          <div style={{ background: '#0d0d1a', border: '1px solid #2a2a3e', borderRadius: 12, padding: '36px 44px', textAlign: 'center', fontFamily: 'var(--font-sans), system-ui, sans-serif', minWidth: 320 }}>
             <div style={{ fontSize: 36, marginBottom: 14 }}>⬡</div>
             <h3 style={{ color: '#e0e0e0', fontSize: 16, marginBottom: 8, fontWeight: 600 }}>Session complete.</h3>
             <p style={{ color: '#666', fontSize: 13, marginBottom: 28 }}>Take a 5 min break.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button onClick={() => setSessionOverlay(null)} style={{ background: '#00d4a1', color: '#000', border: 'none', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={() => setSessionOverlay(null)} style={{ background: '#00d4a1', color: '#000', border: 'none', borderRadius: 6, padding: '9px 18px', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 ◎ Start Break 5 min
               </button>
-              <button onClick={toggleFocus} style={{ background: 'none', color: '#666', border: '1px solid #2a2a3e', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}>
+              <button onClick={toggleFocus} style={{ background: 'none', color: '#666', border: '1px solid #2a2a3e', borderRadius: 6, padding: '9px 18px', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, cursor: 'pointer' }}>
                 ✕ Exit Focus
               </button>
             </div>
@@ -381,14 +381,14 @@ export default function DocPage() {
       {/* Focus mode — after break overlay */}
       {isFocused && sessionOverlay === 'after-break' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,8,16,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#0d0d1a', border: '1px solid #2a2a3e', borderRadius: 12, padding: '36px 44px', textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', minWidth: 280 }}>
+          <div style={{ background: '#0d0d1a', border: '1px solid #2a2a3e', borderRadius: 12, padding: '36px 44px', textAlign: 'center', fontFamily: 'var(--font-sans), system-ui, sans-serif', minWidth: 280 }}>
             <div style={{ fontSize: 36, marginBottom: 14 }}>◉</div>
             <p style={{ color: '#e0e0e0', fontSize: 14, marginBottom: 24 }}>Start another session?</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button onClick={() => setSessionOverlay(null)} style={{ background: '#00d4a1', color: '#000', border: 'none', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={() => setSessionOverlay(null)} style={{ background: '#00d4a1', color: '#000', border: 'none', borderRadius: 6, padding: '9px 18px', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 ▶ Yes, continue
               </button>
-              <button onClick={toggleFocus} style={{ background: 'none', color: '#666', border: '1px solid #2a2a3e', borderRadius: 6, padding: '9px 18px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}>
+              <button onClick={toggleFocus} style={{ background: 'none', color: '#666', border: '1px solid #2a2a3e', borderRadius: 6, padding: '9px 18px', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, cursor: 'pointer' }}>
                 ✕ Exit Focus
               </button>
             </div>
@@ -409,17 +409,17 @@ export default function DocPage() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,8,16,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 24 }}>
           <div style={{ background: '#0d0d1a', border: '1px solid #2a2a3e', borderRadius: 10, width: '100%', maxWidth: 720, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #2a2a3e' }}>
-              <span style={{ color: '#e0e0e0', fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600 }}>▤ Generated README — {readmeModal.title}</span>
+              <span style={{ color: '#e0e0e0', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 13, fontWeight: 600 }}>▤ Generated README — {readmeModal.title}</span>
               <button onClick={() => setReadmeModal(null)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: 18 }}>×</button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-              <pre style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#ccc', whiteSpace: 'pre-wrap', lineHeight: 1.7, margin: 0 }}>{readmeModal.content}</pre>
+              <pre style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 12, color: '#ccc', whiteSpace: 'pre-wrap', lineHeight: 1.7, margin: 0 }}>{readmeModal.content}</pre>
             </div>
             <div style={{ display: 'flex', gap: 10, padding: '14px 20px', borderTop: '1px solid #2a2a3e' }}>
-              <button onClick={() => navigator.clipboard.writeText(readmeModal.content)} style={{ background: 'var(--accent)', color: '#000', border: 'none', borderRadius: 6, padding: '8px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={() => navigator.clipboard.writeText(readmeModal.content)} style={{ background: 'var(--accent)', color: '#000', border: 'none', borderRadius: 6, padding: '8px 16px', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 Copy
               </button>
-              <button onClick={() => downloadFile(readmeModal.content, 'README.md', 'text/markdown')} style={{ background: 'none', color: '#aaa', border: '1px solid #2a2a3e', borderRadius: 6, padding: '8px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, cursor: 'pointer' }}>
+              <button onClick={() => downloadFile(readmeModal.content, 'README.md', 'text/markdown')} style={{ background: 'none', color: '#aaa', border: '1px solid #2a2a3e', borderRadius: 6, padding: '8px 16px', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, cursor: 'pointer' }}>
                 Download .md
               </button>
             </div>

@@ -89,7 +89,7 @@ export function RightPanel({
             color: pomodoroState === 'idle' ? 'var(--status-text)' : 'var(--text-secondary)',
             cursor: 'pointer',
             fontSize: '11px',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             transition: 'all 0.15s',
           }}
         >
@@ -111,7 +111,7 @@ export function RightPanel({
             color: isFocused ? 'var(--accent)' : 'var(--text-muted)',
             cursor: 'pointer',
             fontSize: '11px',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             transition: 'all 0.15s',
           }}
         >

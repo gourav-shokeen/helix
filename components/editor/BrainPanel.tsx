@@ -257,18 +257,18 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
               {selectedFile ? (
                 <>
                   <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '0.25rem', wordBreak: 'break-all', color: 'var(--text-primary)' }}>{selectedFile.path.split('/').pop()}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.75rem', fontFamily: 'JetBrains Mono, monospace', opacity: 0.7 }}>{selectedFile.path}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.75rem', fontFamily: 'var(--font-mono), monospace', opacity: 0.7 }}>{selectedFile.path}</div>
                   <p style={{ color: 'var(--text-secondary)', margin: '0 0 1rem 0', lineHeight: 1.7 }}>{selectedFile.purpose}</p>
                   {(selectedFile.calls || []).length > 0 && (
                     <>
                       <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '1rem 0 0.4rem' }}>Calls</div>
-                      {(selectedFile.calls || []).map(c => <div key={c} onClick={() => setSelectedPath(c)} style={{ padding: '0.2rem 0', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>{c}</div>)}
+                      {(selectedFile.calls || []).map(c => <div key={c} onClick={() => setSelectedPath(c)} style={{ padding: '0.2rem 0', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--font-mono), monospace' }}>{c}</div>)}
                     </>
                   )}
                   {reverseLinks.length > 0 && (
                     <>
                       <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '1rem 0 0.4rem' }}>Called By</div>
-                      {reverseLinks.map(l => <div key={l} onClick={() => setSelectedPath(l)} style={{ padding: '0.2rem 0', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>{l}</div>)}
+                      {reverseLinks.map(l => <div key={l} onClick={() => setSelectedPath(l)} style={{ padding: '0.2rem 0', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--font-mono), monospace' }}>{l}</div>)}
                     </>
                   )}
                   <button
@@ -328,7 +328,7 @@ function BrainPanelComponent({ onClose, docContent = '', collapsed, onCollapsedC
                   {repoFolders.map(folder => (
                     <label key={folder} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.5rem', borderRadius: '4px', cursor: 'pointer', background: selectedFolders.has(folder) ? 'var(--surface-hover)' : 'transparent', fontSize: '12px', color: 'var(--text-primary)' }}>
                       <input type="checkbox" checked={selectedFolders.has(folder)} onChange={e => { const next = new Set(selectedFolders); e.target.checked ? next.add(folder) : next.delete(folder); setSelectedFolders(next) }} style={{ accentColor: 'var(--accent)' }} />
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{folder}</span>
+                      <span style={{ fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>{folder}</span>
                     </label>
                   ))}
                 </div>

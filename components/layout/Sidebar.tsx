@@ -77,7 +77,7 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
             fontSize: '12px',
             cursor: 'pointer',
             textAlign: 'left',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -97,7 +97,7 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
               color: 'var(--text-muted)',
               fontSize: '11px',
               cursor: 'pointer',
-              fontFamily: 'JetBrains Mono, monospace',
+              fontFamily: 'var(--font-sans), system-ui, sans-serif',
             }}
           >
             ↓ README
@@ -124,7 +124,7 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
               textAlign: 'left',
               fontSize: '12px',
               color: doc.id === activeDocId ? 'var(--accent)' : 'var(--text-secondary)',
-              fontFamily: 'JetBrains Mono, monospace',
+              fontFamily: 'var(--font-sans), system-ui, sans-serif',
               transition: 'all 0.15s',
               overflow: 'hidden',
             }}
@@ -202,7 +202,7 @@ export function Sidebar({ docs, activeDocId, onNewDoc, githubRepo, onImportReadm
                 >
                   <span style={{ color: 'var(--accent)', fontSize: '9px', marginTop: 2, flexShrink: 0 }}>●</span>
                   <div style={{ overflow: 'hidden' }}>
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--accent)', display: 'block' }}>
+                    <span style={{ fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: '10px', color: 'var(--accent)', display: 'block' }}>
                       {c.sha}
                     </span>
                     <span style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>

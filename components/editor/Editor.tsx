@@ -33,7 +33,7 @@ function EditorToolbar({ editor }: { editor: any }) {
     padding: '2px 8px',
     borderRadius: 4,
     fontSize: 12,
-    fontFamily: 'JetBrains Mono, monospace',
+    fontFamily: 'var(--font-sans), system-ui, sans-serif',
     border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
     background: active ? 'var(--accent)' : 'var(--surface-hover)',
     color: active ? 'var(--status-text)' : 'var(--text-secondary)',

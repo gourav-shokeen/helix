@@ -232,7 +232,7 @@ export default function ProjectPlanPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'JetBrains Mono, monospace' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>
       <header style={{ height: 44, borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', padding: '0 1rem', gap: '0.8rem' }}>
         <span style={{ color: 'var(--accent)', fontWeight: 700 }}>⬡ Helix</span>
 
@@ -250,7 +250,7 @@ export default function ProjectPlanPage() {
             fontSize: '13px',
             lineHeight: 1,
             flexShrink: 0,
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
           }}
         >
           ←
@@ -261,7 +261,7 @@ export default function ProjectPlanPage() {
 
       <div style={{ display: 'flex', gap: 6, padding: '0 1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
         {(['board', 'sprint', 'decisions', 'notes'] as Tab[]).map(item => (
-          <button key={item} onClick={() => setTab(item)} style={{ background: 'none', border: 'none', borderBottom: tab === item ? '2px solid var(--accent)' : '2px solid transparent', color: tab === item ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', padding: '0.55rem 0.9rem', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+          <button key={item} onClick={() => setTab(item)} style={{ background: 'none', border: 'none', borderBottom: tab === item ? '2px solid var(--accent)' : '2px solid transparent', color: tab === item ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', padding: '0.55rem 0.9rem', fontSize: 12, fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>
             {item === 'board' ? 'Board' : item === 'sprint' ? 'Sprint' : item === 'decisions' ? 'Decisions' : 'Notes'}
           </button>
         ))}
@@ -383,7 +383,7 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 4,
   color: 'var(--text-primary)',
-  fontFamily: 'JetBrains Mono, monospace',
+  fontFamily: 'var(--font-sans), system-ui, sans-serif',
   fontSize: 12,
   outline: 'none',
   padding: '0.4rem 0.55rem',
@@ -395,7 +395,7 @@ const primaryBtnStyle: React.CSSProperties = {
   borderRadius: 4,
   color: 'var(--status-text)',
   cursor: 'pointer',
-  fontFamily: 'JetBrains Mono, monospace',
+  fontFamily: 'var(--font-sans), system-ui, sans-serif',
   fontSize: 11,
   fontWeight: 700,
   padding: '0.4rem 0.8rem',
@@ -407,7 +407,7 @@ const secondaryBtnStyle: React.CSSProperties = {
   borderRadius: 4,
   color: 'var(--text-secondary)',
   cursor: 'pointer',
-  fontFamily: 'JetBrains Mono, monospace',
+  fontFamily: 'var(--font-sans), system-ui, sans-serif',
   fontSize: 11,
   padding: '0.35rem 0.75rem',
 }

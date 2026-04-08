@@ -91,8 +91,8 @@ function parseGantt(dsl: string): { title: string; tasks: GanttTask[] } {
   return { title, tasks }
 }
 
-const inp: React.CSSProperties = { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, outline: 'none', padding: '0.3rem 0.5rem', flex: 1, minWidth: 0 }
-const addBtn: React.CSSProperties = { background: 'none', border: '1px dashed var(--accent)', borderRadius: 5, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, padding: '0.3rem', marginTop: 4, width: '100%' }
+const inp: React.CSSProperties = { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 11, outline: 'none', padding: '0.3rem 0.5rem', flex: 1, minWidth: 0 }
+const addBtn: React.CSSProperties = { background: 'none', border: '1px dashed var(--accent)', borderRadius: 5, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 11, padding: '0.3rem', marginTop: 4, width: '100%' }
 const delBtn: React.CSSProperties = {
   position: 'absolute',
   top: 6,
@@ -106,7 +106,7 @@ const delBtn: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: 14,
   fontWeight: 700,
-  fontFamily: 'JetBrains Mono, monospace',
+  fontFamily: 'var(--font-sans), system-ui, sans-serif',
   padding: 0,
   lineHeight: 1,
   display: 'inline-flex',
@@ -404,7 +404,7 @@ export function DiagramModal({ onInsert, onClose, initialDsl, mode = 'insert' }:
           <div style={{ display: 'flex', gap: '0.4rem', marginLeft: 'auto' }}>
             {Object.keys(TEMPLATES).map(name => (
               <button key={name} onClick={() => handleTemplate(name)}
-                style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, padding: '0.25rem 0.6rem' }}>{name}</button>
+                style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 11, padding: '0.25rem 0.6rem' }}>{name}</button>
             ))}
           </div>
         </div>
@@ -424,7 +424,7 @@ export function DiagramModal({ onInsert, onClose, initialDsl, mode = 'insert' }:
               )}
               {!hasVisualEditor && (
                 <textarea ref={textareaRef} value={syntax} onChange={e => handleDslChange(e.target.value)} spellCheck={false}
-                  style={{ flex: 1, background: 'var(--bg)', color: 'var(--text-primary)', border: 'none', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, lineHeight: 1.7, outline: 'none', padding: '0.75rem 1rem', resize: 'none', caretColor: 'var(--accent)', overflowY: 'auto' }} />
+                  style={{ flex: 1, background: 'var(--bg)', color: 'var(--text-primary)', border: 'none', fontFamily: 'var(--font-mono), monospace', fontSize: 12, lineHeight: 1.7, outline: 'none', padding: '0.75rem 1rem', resize: 'none', caretColor: 'var(--accent)', overflowY: 'auto' }} />
               )}
             </div>
           </div>
@@ -432,16 +432,16 @@ export function DiagramModal({ onInsert, onClose, initialDsl, mode = 'insert' }:
             <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '0.4rem 0.75rem', borderBottom: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>Preview</div>
             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', background: 'var(--bg)', padding: '1.25rem 1rem', display: 'flex', alignItems: 'flex-start', justifyContent: diagramType === 'Sequence' ? 'flex-start' : 'center' }}>
               {error
-                ? <div style={{ color: 'var(--red)', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap' }}>⚠ {error}</div>
+                ? <div style={{ color: 'var(--red)', fontSize: 12, fontFamily: 'var(--font-sans), system-ui, sans-serif', whiteSpace: 'pre-wrap' }}>⚠ {error}</div>
                 : <div ref={previewRef} dangerouslySetInnerHTML={{ __html: svg }} style={{ display: 'inline-block', textAlign: 'left' as const, whiteSpace: 'normal', flexShrink: 0, minWidth: 'min-content' }} />
               }
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', padding: '0.65rem 1rem', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-          <button onClick={onClose} style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, padding: '0.4rem 0.9rem' }}>Cancel</button>
+          <button onClick={onClose} style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, padding: '0.4rem 0.9rem' }}>Cancel</button>
           <button onClick={() => { onInsert(syntax); onClose() }}
-            style={{ background: 'var(--accent)', border: 'none', borderRadius: 4, color: 'var(--status-text)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, padding: '0.4rem 0.9rem' }}>
+            style={{ background: 'var(--accent)', border: 'none', borderRadius: 4, color: 'var(--status-text)', cursor: 'pointer', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: 12, fontWeight: 700, padding: '0.4rem 0.9rem' }}>
             {mode === 'update' ? 'Update' : 'Insert'}
           </button>
         </div>

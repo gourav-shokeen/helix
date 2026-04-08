@@ -43,7 +43,7 @@ function LoginContent() {
         alignItems: 'center',
         justifyContent: 'center',
         background: 'var(--bg)',
-        fontFamily: 'JetBrains Mono, monospace',
+        fontFamily: 'var(--font-sans), system-ui, sans-serif',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -204,7 +204,7 @@ function LoginContent() {
             fontSize: '13px',
             fontWeight: 700,
             cursor: 'pointer',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

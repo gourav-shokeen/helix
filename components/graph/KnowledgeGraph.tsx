@@ -219,7 +219,7 @@ export function KnowledgeGraph({
       .join('text')
       .text((d) => d.title.length > 20 ? `${d.title.slice(0, 20)}…` : d.title)
       .attr('font-size', 10)
-      .attr('font-family', 'JetBrains Mono, monospace')
+      .attr('font-family', 'var(--font-mono), monospace')
       .attr('fill', '#888')
       .attr('text-anchor', 'middle')
       .attr('pointer-events', 'none')
@@ -316,7 +316,7 @@ export function KnowledgeGraph({
             borderRadius: 6,
             padding: '6px 12px',
             color: '#e0e0e0',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             fontSize: 12,
             outline: 'none',
             width: 180,
@@ -330,7 +330,7 @@ export function KnowledgeGraph({
             borderRadius: 6,
             padding: '6px 12px',
             color: '#aaa',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             fontSize: 12,
             cursor: 'pointer',
           }}
@@ -342,7 +342,7 @@ export function KnowledgeGraph({
             onClick={() => onConnectedOnlyChange(false)}
             style={{
               padding: '6px 12px',
-              fontFamily: 'JetBrains Mono, monospace',
+              fontFamily: 'var(--font-sans), system-ui, sans-serif',
               fontSize: 12,
               cursor: 'pointer',
               border: 'none',
@@ -356,7 +356,7 @@ export function KnowledgeGraph({
             onClick={() => onConnectedOnlyChange(true)}
             style={{
               padding: '6px 12px',
-              fontFamily: 'JetBrains Mono, monospace',
+              fontFamily: 'var(--font-sans), system-ui, sans-serif',
               fontSize: 12,
               cursor: 'pointer',
               border: 'none',
@@ -384,7 +384,7 @@ export function KnowledgeGraph({
             pointerEvents: 'none',
           }}
         >
-          <div style={{ textAlign: 'center', color: '#444', fontFamily: 'JetBrains Mono, monospace' }}>
+          <div style={{ textAlign: 'center', color: '#444', fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>⬡</div>
             <div style={{ fontSize: 14, color: '#666' }}>No linked docs yet.</div>
             <div style={{ marginTop: 6, fontSize: 12, color: '#444' }}>
@@ -410,7 +410,7 @@ export function KnowledgeGraph({
             border: '1px solid #2a2a3e',
             borderRadius: 8,
             padding: '8px 16px',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             fontSize: 11,
             color: '#555',
             pointerEvents: 'none',
@@ -436,7 +436,7 @@ export function KnowledgeGraph({
             zIndex: 20,
             fontSize: 12,
             color: '#e0e0e0',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             maxWidth: 280,
             whiteSpace: 'nowrap',
           }}
@@ -469,7 +469,7 @@ export function KnowledgeGraph({
               style={{
                 margin: 0,
                 color: '#e0e0e0',
-                fontFamily: 'JetBrains Mono, monospace',
+                fontFamily: 'var(--font-sans), system-ui, sans-serif',
                 fontSize: 14,
                 fontWeight: 600,
                 lineHeight: 1.4,
@@ -499,7 +499,7 @@ export function KnowledgeGraph({
               style={{
                 margin: 0,
                 color: '#777',
-                fontFamily: 'JetBrains Mono, monospace',
+                fontFamily: 'var(--font-sans), system-ui, sans-serif',
                 fontSize: 11,
                 lineHeight: 1.7,
               }}
@@ -517,7 +517,7 @@ export function KnowledgeGraph({
               border: 'none',
               borderRadius: 6,
               padding: '9px 16px',
-              fontFamily: 'JetBrains Mono, monospace',
+              fontFamily: 'var(--font-sans), system-ui, sans-serif',
               fontSize: 12,
               fontWeight: 700,
               cursor: 'pointer',
@@ -532,7 +532,7 @@ export function KnowledgeGraph({
               <div
                 style={{
                   color: '#444',
-                  fontFamily: 'JetBrains Mono, monospace',
+                  fontFamily: 'var(--font-sans), system-ui, sans-serif',
                   fontSize: 10,
                   marginBottom: 8,
                   textTransform: 'uppercase',
@@ -552,7 +552,7 @@ export function KnowledgeGraph({
                       borderRadius: 4,
                       padding: '7px 10px',
                       color: '#00d4a1',
-                      fontFamily: 'JetBrains Mono, monospace',
+                      fontFamily: 'var(--font-sans), system-ui, sans-serif',
                       fontSize: 11,
                       cursor: 'pointer',
                       textAlign: 'left',

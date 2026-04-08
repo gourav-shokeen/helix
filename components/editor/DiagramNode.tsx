@@ -200,7 +200,7 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
                 color: 'var(--text-muted)',
                 cursor: 'pointer',
                 fontSize: '14px',
-                fontFamily: 'JetBrains Mono, monospace',
+                fontFamily: 'var(--font-sans), system-ui, sans-serif',
                 fontWeight: 400,
                 lineHeight: 1,
                 display: 'flex',
@@ -238,7 +238,7 @@ function DiagramNodeView({ node, deleteNode, selected }: NodeViewProps) {
                 color: 'var(--text-muted)',
                 cursor: 'pointer',
                 fontSize: '10px',
-                fontFamily: 'JetBrains Mono, monospace',
+                fontFamily: 'var(--font-sans), system-ui, sans-serif',
                 zIndex: 20,
                 transition: 'color 0.15s ease, border-color 0.15s ease',
               }}

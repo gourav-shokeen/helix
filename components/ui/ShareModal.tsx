@@ -75,7 +75,7 @@ export function ShareModal({ docId, onClose }: ShareModalProps) {
 
         {generatedLink && (
           <div style={{ marginTop: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.4rem 0.6rem', fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.4rem 0.6rem', fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{generatedLink}</span>
               <span style={{ fontSize: '10px', background: 'var(--orange)', color: 'var(--status-text)', padding: '1px 5px', borderRadius: '3px', fontWeight: 700, flexShrink: 0 }}>
                 edit

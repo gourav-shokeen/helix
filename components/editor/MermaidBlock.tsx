@@ -94,7 +94,7 @@ function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeV
                   background: 'var(--code-bg)',
                   color: 'var(--text-primary)',
                   border: 'none',
-                  fontFamily: 'JetBrains Mono, monospace',
+                  fontFamily: 'var(--font-mono), monospace',
                   fontSize: '12px',
                   resize: 'vertical',
                   outline: 'none',
@@ -122,7 +122,7 @@ function MermaidNodeView({ node, updateAttributes, deleteNode, selected }: NodeV
           ) : svg ? (
             <div dangerouslySetInnerHTML={{ __html: svg }} style={{ overflow: 'auto' }} />
           ) : (
-            <div style={{ color: 'var(--text-muted)', fontSize: '12px', padding: '0.5rem', fontFamily: 'JetBrains Mono, monospace' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '12px', padding: '0.5rem', fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>
               Rendering diagram...
             </div>
           )}

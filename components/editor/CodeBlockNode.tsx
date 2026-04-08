@@ -185,7 +185,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
             onMouseDown={(e) => e.stopPropagation()}
-            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', outline: 'none', padding: '2px 4px', cursor: 'pointer' }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: '11px', outline: 'none', padding: '2px 4px', cursor: 'pointer' }}
           >
             {LANGUAGES.map((l) => (
               <option key={l} value={l}>{l}</option>
@@ -197,7 +197,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
               onClick={handleRun}
               disabled={running}
-              style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '3px', color: 'var(--accent)', cursor: running ? 'wait' : 'pointer', fontSize: '10px', fontFamily: 'JetBrains Mono, monospace', padding: '2px 8px', opacity: running ? 0.6 : 1 }}
+              style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '3px', color: 'var(--accent)', cursor: running ? 'wait' : 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px', opacity: running ? 0.6 : 1 }}
             >
               {running ? '◉ running' : '▶ Run'}
             </button>
@@ -205,14 +205,14 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           <button
             onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
             onClick={handleCopy}
-            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: copied ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'JetBrains Mono, monospace', padding: '2px 8px' }}
+            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: copied ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px' }}
           >
             {copied ? '✓ copied' : 'copy'}
           </button>
           <button
             onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
             onClick={deleteNode}
-            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'JetBrains Mono, monospace', padding: '2px 8px' }}
+            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px' }}
           >
             delete
           </button>
@@ -225,7 +225,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
         </div>
 
         {output !== null && (
-          <div style={{ padding: '0.5rem 0.75rem', borderTop: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--accent)', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto' }}>
+          <div style={{ padding: '0.5rem 0.75rem', borderTop: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--accent)', fontFamily: 'var(--font-mono), monospace', fontSize: '12px', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>output › </span>{output}
             <button
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}

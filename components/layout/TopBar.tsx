@@ -170,7 +170,7 @@ export function TopBar({
             fontSize: '13px',
             lineHeight: 1,
             flexShrink: 0,
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
           }}
         >
           ←
@@ -195,7 +195,7 @@ export function TopBar({
                 border: 'none',
                 borderBottom: '1px solid var(--accent)',
                 color: 'var(--text-primary)',
-                fontFamily: 'JetBrains Mono, monospace',
+                fontFamily: 'var(--font-sans), system-ui, sans-serif',
                 fontSize: '13px',
                 outline: 'none',
                 width: '100%',
@@ -411,7 +411,7 @@ const btnStyle: React.CSSProperties = {
   color: 'var(--text-secondary)',
   fontSize: '11px',
   transition: 'all 0.15s ease',
-  fontFamily: 'JetBrains Mono, monospace',
+  fontFamily: 'var(--font-sans), system-ui, sans-serif',
 }
 
 const dropItemStyle: React.CSSProperties = {
@@ -422,7 +422,7 @@ const dropItemStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--text-secondary)',
-  fontFamily: 'JetBrains Mono, monospace',
+  fontFamily: 'var(--font-sans), system-ui, sans-serif',
   fontSize: '11px',
   cursor: 'pointer',
 }

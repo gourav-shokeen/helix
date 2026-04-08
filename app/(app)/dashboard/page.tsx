@@ -88,7 +88,7 @@ export default function DashboardPage() {
                 fontWeight: 700,
                 fontSize: '12px',
                 cursor: creating ? 'not-allowed' : 'pointer',
-                fontFamily: 'JetBrains Mono, monospace',
+                fontFamily: 'var(--font-sans), system-ui, sans-serif',
                 opacity: creating ? 0.6 : 1,
                 transition: 'opacity 0.15s ease',
               }}
@@ -96,7 +96,7 @@ export default function DashboardPage() {
               {creating ? 'creating...' : '+ New Document'}
             </button>
             {createError && (
-              <span style={{ color: 'var(--red)', fontSize: '11px', fontFamily: 'JetBrains Mono, monospace' }}>
+              <span style={{ color: 'var(--red)', fontSize: '11px', fontFamily: 'var(--font-sans), system-ui, sans-serif' }}>
                 ⚠ {createError}
               </span>
             )}

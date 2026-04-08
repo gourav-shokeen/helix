@@ -116,7 +116,7 @@ export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }
     borderRadius: 5,
     padding: '7px 10px',
     color: '#e0e0e0',
-    fontFamily: 'JetBrains Mono, monospace',
+    fontFamily: 'var(--font-sans), system-ui, sans-serif',
     fontSize: '12px',
     outline: 'none',
     boxSizing: 'border-box',
@@ -128,7 +128,7 @@ export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }
     color: '#000',
     border: 'none',
     borderRadius: 6,
-    fontFamily: 'JetBrains Mono, monospace',
+    fontFamily: 'var(--font-sans), system-ui, sans-serif',
     fontSize: '12px',
     fontWeight: 700,
     cursor: 'pointer',
@@ -140,7 +140,7 @@ export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }
     color: '#888',
     border: '1px solid #2a2a3e',
     borderRadius: 6,
-    fontFamily: 'JetBrains Mono, monospace',
+    fontFamily: 'var(--font-sans), system-ui, sans-serif',
     fontSize: '12px',
     cursor: 'pointer',
   }
@@ -167,7 +167,7 @@ export function GitHubSettingsModal({ docId, currentRepo, onClose, onRepoSaved }
           borderRadius: 10,
           width: '100%',
           maxWidth: 460,
-          fontFamily: 'JetBrains Mono, monospace',
+          fontFamily: 'var(--font-sans), system-ui, sans-serif',
         }}
       >
         {/* Header */}

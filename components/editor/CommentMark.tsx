@@ -176,7 +176,7 @@ export function SelectionCommentButton({ onComment }: SelectionToolbarProps) {
           color: 'var(--accent)',
           cursor: 'pointer',
           fontSize: '12px',
-          fontFamily: 'JetBrains Mono, monospace',
+          fontFamily: 'var(--font-sans), system-ui, sans-serif',
         }}
       >
         💬 Comment
@@ -324,7 +324,7 @@ export function ThreadSidebar({ docId, onHighlightThread, onThreadResolved, pend
                   placeholder="Reply…"
                   rows={2}
                   onClick={(e) => e.stopPropagation()}
-                  style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', outline: 'none', padding: '0.3rem', resize: 'none', marginTop: '0.4rem' }}
+                  style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-primary)', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: '11px', outline: 'none', padding: '0.3rem', resize: 'none', marginTop: '0.4rem' }}
                 />
                 <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem' }}>
                   <button

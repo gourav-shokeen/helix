@@ -160,7 +160,7 @@ export function CommandPalette({ onClose, docId, docTitle }: CommandPaletteProps
             borderBottom: '1px solid var(--border)',
             color: 'var(--text-primary)',
             fontSize: '13px',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-sans), system-ui, sans-serif',
             outline: 'none',
           }}
         />

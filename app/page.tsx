@@ -10,7 +10,7 @@ export default function RootPage() {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '2rem',
-      fontFamily: 'JetBrains Mono, monospace',
+      fontFamily: 'var(--font-sans), system-ui, sans-serif',
     }}>
       <div style={{ textAlign: 'center', maxWidth: '560px' }}>
         {/* Logo */}

@@ -10,6 +10,7 @@ const lowlight = createLowlight(common)
 const LANGUAGES = ['javascript', 'typescript', 'python', 'rust', 'go', 'sql', 'bash', 'json', 'html', 'css']
 const RUNNABLE = ['javascript', 'typescript', 'python']
 
+// ─── Pyodide ────────────────────────────────────────────────────────────────
 let pyodide: any | null = null
 let pyodideLoading: Promise<any> | null = null
 
@@ -24,11 +25,10 @@ async function initializePyodide() {
   pyodideLoading = new Promise<void>((resolve, reject) => {
     script.onload = async () => {
       // @ts-ignore
-      const loadedPyodide = await globalThis.loadPyodide()
-      pyodide = loadedPyodide
+      const loaded = await globalThis.loadPyodide()
+      pyodide = loaded
       pyodide.runPython(`
-        import sys
-        import io
+        import sys, io
         sys.stdout = io.StringIO()
       `)
       resolve(pyodide)
@@ -39,8 +39,7 @@ async function initializePyodide() {
 }
 
 function cleanPyTraceback(raw: string): string {
-  const lines = raw.split('\n')
-  const errorLine = [...lines].reverse().find(l => {
+  const errorLine = [...raw.split('\n')].reverse().find(l => {
     const t = l.trim()
     return (
       t.length > 0 &&
@@ -59,16 +58,13 @@ async function runPython(code: string): Promise<string> {
   try {
     const py = await initializePyodide()
     py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
-
     try {
       py.runPython(code)
     } catch (e: any) {
       const stdout = py.runPython('sys.stdout.getvalue()')
       py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
-      const cleaned = cleanPyTraceback(e.message)
-      return (stdout ? stdout + '\n' : '') + `[Error] ${cleaned}`
+      return (stdout ? stdout + '\n' : '') + `[Error] ${cleanPyTraceback(e.message)}`
     }
-
     const stdout = py.runPython('sys.stdout.getvalue()')
     py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
     return stdout || '(no output)'
@@ -77,58 +73,75 @@ async function runPython(code: string): Promise<string> {
   }
 }
 
-function createRunnerHtml(code: string, language: string) {
-  const safeCode = JSON.stringify(code)
-  const safeLanguage = JSON.stringify(language)
+// ─── TypeScript compiler (loaded once, lazily) ───────────────────────────────
+let tsCompiler: any = null
+let tsLoading: Promise<any> | null = null
 
-  return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <script src="https://unpkg.com/typescript@5.6.3/lib/typescript.js"><\/script>
-  </head>
-  <body>
-    <script>
-      (() => {
-        const logs = [];
-        const originalLog = console.log.bind(console);
-        const originalError = console.error.bind(console);
-        const originalWarn = console.warn.bind(console);
-
-        const push = (prefix, args) => logs.push(prefix + args.map((arg) => {
-          if (typeof arg === 'string') return arg;
-          try { return JSON.stringify(arg); } catch { return String(arg); }
-        }).join(' '));
-
-        console.log = (...args) => { push('', args); originalLog(...args); };
-        console.error = (...args) => { push('[Error] ', args); originalError(...args); };
-        console.warn = (...args) => { push('[Warn] ', args); originalWarn(...args); };
-
-        const source = ${safeCode};
-        const language = ${safeLanguage};
-
-        try {
-          let executable = source;
-          if (language === 'typescript' && window.ts) {
-            executable = window.ts.transpile(source, {
-              target: window.ts.ScriptTarget.ES2020,
-              module: window.ts.ModuleKind.ESNext,
-            });
-          }
-          (0, eval)(executable);
-        } catch (error) {
-          logs.push('[Error] ' + (error?.message || String(error)));
-        }
-
-        window.parent.postMessage({ type: 'helix-run', output: logs.join('\\n') || '(no output)' }, '*');
-      })();
-    <\/script>
-  </body>
-</html>`
+async function loadTypeScript(): Promise<any> {
+  if (tsCompiler) return tsCompiler
+  if (tsLoading) return tsLoading
+  tsLoading = new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://unpkg.com/typescript@5.6.3/lib/typescript.js'
+    script.onload = () => { tsCompiler = (window as any).ts; resolve(tsCompiler) }
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+  return tsLoading
 }
 
-// Detects touch-primary devices (phones/tablets).
-// Runs once after mount — SSR-safe (defaults false = desktop handlers).
+// ─── JS/TS runner — direct eval, no iframe/postMessage/blob needed ───────────
+// More reliable on all browsers/platforms including deployed HTTPS on mobile.
+async function runJS(code: string, language: string): Promise<string> {
+  const logs: string[] = []
+
+  const origLog   = console.log.bind(console)
+  const origError = console.error.bind(console)
+  const origWarn  = console.warn.bind(console)
+
+  const serialize = (args: any[]) =>
+    args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
+
+  console.log   = (...args: any[]) => { logs.push(serialize(args));               origLog(...args) }
+  console.error = (...args: any[]) => { logs.push('[Error] ' + serialize(args));   origError(...args) }
+  console.warn  = (...args: any[]) => { logs.push('[Warn] '  + serialize(args));   origWarn(...args) }
+
+  try {
+    let executable = code
+
+    if (language === 'typescript') {
+      try {
+        const ts = await loadTypeScript()
+        executable = ts.transpile(code, {
+          target: ts.ScriptTarget.ES2020,
+          module: ts.ModuleKind.ESNext,
+        })
+      } catch {
+        // TS compiler failed to load — run as-is and let eval surface the error
+      }
+    }
+
+    // eslint-disable-next-line no-eval
+    ;(0, eval)(executable)
+  } catch (e: any) {
+    logs.push('[Error] ' + (e?.message || String(e)))
+  } finally {
+    console.log   = origLog
+    console.error = origError
+    console.warn  = origWarn
+  }
+
+  return logs.join('\n') || '(no output)'
+}
+
+// ─── Event helpers ───────────────────────────────────────────────────────────
+// stopImmediatePropagation is critical — ProseMirror uses native DOM listeners,
+// React's stopPropagation() alone does NOT stop native listeners.
+function nativeStop(e: React.SyntheticEvent) {
+  e.stopPropagation()
+  e.nativeEvent.stopImmediatePropagation()
+}
+
 function useIsTouchDevice() {
   const [isTouch, setIsTouch] = useState(false)
   useEffect(() => {
@@ -137,37 +150,36 @@ function useIsTouchDevice() {
   return isTouch
 }
 
-// Desktop button handlers — identical to original, no touch events involved
+// Desktop: preventDefault on mousedown stops ProseMirror cursor placement
 const desktopBtnStop = {
-  onMouseDown: (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation() },
+  onMouseDown: (e: React.MouseEvent) => { e.preventDefault(); nativeStop(e) },
 }
 
-// Mobile button handlers — stopPropagation only, NO preventDefault so onClick still fires
+// Mobile: stopPropagation + stopImmediatePropagation on touch, NO preventDefault
+// so the browser's synthetic click event still fires after touchend → onClick runs
 const mobileBtnStop = {
-  onTouchStart: (e: React.TouchEvent) => e.stopPropagation(),
-  onTouchEnd: (e: React.TouchEvent) => e.stopPropagation(),
+  onTouchStart: (e: React.TouchEvent) => nativeStop(e),
+  onTouchEnd:   (e: React.TouchEvent) => nativeStop(e),
 }
 
-// Desktop select handler — stops PM from stealing focus on mousedown
+// Desktop select: just stop PM from stealing focus
 const desktopSelectStop = {
-  onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
+  onMouseDown: (e: React.MouseEvent) => nativeStop(e),
 }
-
-// Mobile select handler — nothing at all, native dropdown must open freely
+// Mobile select: no handlers at all — native dropdown must open freely
 const mobileSelectStop = {}
 
+// ─── Component ───────────────────────────────────────────────────────────────
 function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps) {
   const isTouch = useIsTouchDevice()
 
-  // Pick the right handler set based on device type
-  const btnStop  = isTouch ? mobileBtnStop  : desktopBtnStop
-  const selStop  = isTouch ? mobileSelectStop : desktopSelectStop
+  const btnStop = isTouch ? mobileBtnStop  : desktopBtnStop
+  const selStop = isTouch ? mobileSelectStop : desktopSelectStop
 
   const [language, setLanguage] = useState((node.attrs.language as string) || 'typescript')
-  const [copied, setCopied] = useState(false)
-  const [output, setOutput] = useState<string | null>(null)
-  const [running, setRunning] = useState(false)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [copied,   setCopied]   = useState(false)
+  const [output,   setOutput]   = useState<string | null>(null)
+  const [running,  setRunning]  = useState(false)
 
   const code = node.textContent
 
@@ -188,38 +200,24 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
       setOutput(`Execution not supported for ${language}`)
       return
     }
-
     setRunning(true)
     setOutput('Running...')
-
-    if (language === 'python') {
-      const result = await runPython(code)
+    try {
+      const result =
+        language === 'python'
+          ? await runPython(code)
+          : await runJS(code, language)
       setOutput(result)
+    } catch (e: any) {
+      setOutput(`[Error] ${e.message}`)
+    } finally {
       setRunning(false)
-      return
-    }
-
-    if (iframeRef.current) {
-      iframeRef.current.srcdoc = createRunnerHtml(code, language)
     }
   }
 
-  useEffect(() => {
-    const onMsg = (e: MessageEvent) => {
-      if (e.data?.type === 'helix-run') {
-        setOutput(e.data.output || '(no output)')
-        setRunning(false)
-      }
-    }
-    window.addEventListener('message', onMsg)
-    return () => window.removeEventListener('message', onMsg)
-  }, [])
-
   return (
     <NodeViewWrapper>
-      <div
-        style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '0.75em 0', background: 'var(--code-bg)', position: 'relative' }}
-      >
+      <div style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '0.75em 0', background: 'var(--code-bg)', position: 'relative' }}>
         <div
           contentEditable={false}
           style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.6rem', borderBottom: '1px solid var(--border)', background: 'var(--surface)', cursor: 'default', userSelect: 'none' }}
@@ -283,13 +281,6 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
             </button>
           </div>
         )}
-
-        <iframe
-          ref={iframeRef}
-          style={{ display: 'none', width: 0, height: 0, border: 'none' }}
-          sandbox="allow-scripts"
-          title="helix-runner"
-        />
       </div>
     </NodeViewWrapper>
   )

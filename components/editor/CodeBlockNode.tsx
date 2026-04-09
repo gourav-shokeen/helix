@@ -42,10 +42,29 @@ async function initializePyodide() {
 async function runPython(code: string): Promise<string> {
   try {
     const py = await initializePyodide()
-    py.runPython(code)
+
+    // Always reset stdout BEFORE running — prevents stale buffer bleed
+    py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
+
+    try {
+      py.runPython(code)
+    } catch (e: any) {
+      // Grab any stdout that printed before the error, then clear
+      const stdout = py.runPython('sys.stdout.getvalue()')
+      py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
+      // Filter out Pyodide internal file paths — show only user-relevant lines
+      const cleaned = (e.message as string)
+        .split('\n')
+        .filter((l: string) => !l.includes('/lib/python') && !l.includes('pyodide'))
+        .join('\n')
+        .trim()
+      return (stdout ? stdout + '\n' : '') + `[Error] ${cleaned || e.message}`
+    }
+
     const stdout = py.runPython('sys.stdout.getvalue()')
     py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
     return stdout || '(no output)'
+
   } catch (e: any) {
     return `[Error] ${e.message}`
   }

@@ -101,10 +101,12 @@ function createRunnerHtml(code: string, language: string) {
 </html>`
 }
 
-// Prevents both mouse and touch events from bubbling into ProseMirror
-function stopAll(e: React.SyntheticEvent) {
-  e.preventDefault()
-  e.stopPropagation()
+// onMouseDown: preventDefault stops ProseMirror cursor placement (mouse only)
+// onTouchStart/End: stopPropagation only — preventDefault would kill onClick on mobile
+const btnStop = {
+  onMouseDown: (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation() },
+  onTouchStart: (e: React.TouchEvent) => e.stopPropagation(),
+  onTouchEnd: (e: React.TouchEvent) => e.stopPropagation(),
 }
 
 function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps) {
@@ -144,9 +146,8 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
       return
     }
 
-    // FIX: use srcdoc instead of blob URL.
-    // Blob URLs in sandboxed iframes break on iOS Safari and some Android
-    // Chrome when served over HTTPS — srcdoc is universally supported.
+    // srcdoc instead of blob URL — works universally on mobile/HTTPS
+    // Blob URLs in sandboxed iframes break silently on iOS Safari over HTTPS
     if (iframeRef.current) {
       iframeRef.current.srcdoc = createRunnerHtml(code, language)
     }
@@ -163,13 +164,6 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
   }, [])
-
-  // Shared button props: block ALL pointer/touch events from reaching ProseMirror
-  const btnStop = {
-    onMouseDown: stopAll,
-    onTouchStart: stopAll,  // FIX: was missing — caused newline insertion on mobile tap
-    onTouchEnd: stopAll,
-  }
 
   return (
     <NodeViewWrapper>
@@ -240,7 +234,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           </div>
         )}
 
-        {/* srcdoc iframe — no blob URL needed, works on all mobile browsers */}
+        {/* srcdoc iframe — no blob URL, works on all mobile browsers over HTTPS */}
         <iframe
           ref={iframeRef}
           style={{ display: 'none', width: 0, height: 0, border: 'none' }}

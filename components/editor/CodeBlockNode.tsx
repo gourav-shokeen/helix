@@ -10,7 +10,6 @@ const lowlight = createLowlight(common)
 const LANGUAGES = ['javascript', 'typescript', 'python', 'rust', 'go', 'sql', 'bash', 'json', 'html', 'css']
 const RUNNABLE = ['javascript', 'typescript', 'python']
 
-// Pyodide state
 let pyodide: any | null = null
 let pyodideLoading: Promise<any> | null = null
 
@@ -39,32 +38,40 @@ async function initializePyodide() {
   return pyodideLoading
 }
 
+function cleanPyTraceback(raw: string): string {
+  const lines = raw.split('\n')
+  const errorLine = [...lines].reverse().find(l => {
+    const t = l.trim()
+    return (
+      t.length > 0 &&
+      !t.startsWith('^') &&
+      !t.startsWith('File "') &&
+      !t.startsWith('Traceback') &&
+      !t.startsWith('CodeRunner') &&
+      !t.includes('_pyodide') &&
+      !t.includes('/lib/python')
+    )
+  })
+  return errorLine?.trim() || raw.split('\n').at(-1)?.trim() || raw
+}
+
 async function runPython(code: string): Promise<string> {
   try {
     const py = await initializePyodide()
-
-    // Always reset stdout BEFORE running — prevents stale buffer bleed
     py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
 
     try {
       py.runPython(code)
     } catch (e: any) {
-      // Grab any stdout that printed before the error, then clear
       const stdout = py.runPython('sys.stdout.getvalue()')
       py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
-      // Filter out Pyodide internal file paths — show only user-relevant lines
-      const cleaned = (e.message as string)
-        .split('\n')
-        .filter((l: string) => !l.includes('/lib/python') && !l.includes('pyodide'))
-        .join('\n')
-        .trim()
-      return (stdout ? stdout + '\n' : '') + `[Error] ${cleaned || e.message}`
+      const cleaned = cleanPyTraceback(e.message)
+      return (stdout ? stdout + '\n' : '') + `[Error] ${cleaned}`
     }
 
     const stdout = py.runPython('sys.stdout.getvalue()')
     py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
     return stdout || '(no output)'
-
   } catch (e: any) {
     return `[Error] ${e.message}`
   }
@@ -120,15 +127,42 @@ function createRunnerHtml(code: string, language: string) {
 </html>`
 }
 
-// onMouseDown: preventDefault stops ProseMirror cursor placement (mouse only)
-// onTouchStart/End: stopPropagation only — preventDefault would kill onClick on mobile
-const btnStop = {
+// Detects touch-primary devices (phones/tablets).
+// Runs once after mount — SSR-safe (defaults false = desktop handlers).
+function useIsTouchDevice() {
+  const [isTouch, setIsTouch] = useState(false)
+  useEffect(() => {
+    setIsTouch(navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
+  }, [])
+  return isTouch
+}
+
+// Desktop button handlers — identical to original, no touch events involved
+const desktopBtnStop = {
   onMouseDown: (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation() },
+}
+
+// Mobile button handlers — stopPropagation only, NO preventDefault so onClick still fires
+const mobileBtnStop = {
   onTouchStart: (e: React.TouchEvent) => e.stopPropagation(),
   onTouchEnd: (e: React.TouchEvent) => e.stopPropagation(),
 }
 
+// Desktop select handler — stops PM from stealing focus on mousedown
+const desktopSelectStop = {
+  onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
+}
+
+// Mobile select handler — nothing at all, native dropdown must open freely
+const mobileSelectStop = {}
+
 function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps) {
+  const isTouch = useIsTouchDevice()
+
+  // Pick the right handler set based on device type
+  const btnStop  = isTouch ? mobileBtnStop  : desktopBtnStop
+  const selStop  = isTouch ? mobileSelectStop : desktopSelectStop
+
   const [language, setLanguage] = useState((node.attrs.language as string) || 'typescript')
   const [copied, setCopied] = useState(false)
   const [output, setOutput] = useState<string | null>(null)
@@ -165,12 +199,9 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
       return
     }
 
-    // srcdoc instead of blob URL — works universally on mobile/HTTPS
-    // Blob URLs in sandboxed iframes break silently on iOS Safari over HTTPS
     if (iframeRef.current) {
       iframeRef.current.srcdoc = createRunnerHtml(code, language)
     }
-    // setRunning(false) happens in the message listener after postMessage arrives
   }
 
   useEffect(() => {
@@ -196,7 +227,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           <select
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
-            {...btnStop}
+            {...selStop}
             style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: '11px', outline: 'none', padding: '2px 4px', cursor: 'pointer' }}
           >
             {LANGUAGES.map((l) => (
@@ -253,7 +284,6 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           </div>
         )}
 
-        {/* srcdoc iframe — no blob URL, works on all mobile browsers over HTTPS */}
         <iframe
           ref={iframeRef}
           style={{ display: 'none', width: 0, height: 0, border: 'none' }}

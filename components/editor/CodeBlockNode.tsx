@@ -18,10 +18,8 @@ async function initializePyodide() {
   if (pyodide) return pyodide
   if (pyodideLoading) return pyodideLoading
 
-  // @ts-ignore
   const script = globalThis.document.createElement('script')
   script.src = 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js'
-  // @ts-ignore
   globalThis.document.head.appendChild(script)
 
   pyodideLoading = new Promise<void>((resolve, reject) => {
@@ -29,7 +27,6 @@ async function initializePyodide() {
       // @ts-ignore
       const loadedPyodide = await globalThis.loadPyodide()
       pyodide = loadedPyodide
-      // Override stdout to capture prints
       pyodide.runPython(`
         import sys
         import io
@@ -47,7 +44,7 @@ async function runPython(code: string): Promise<string> {
     const py = await initializePyodide()
     py.runPython(code)
     const stdout = py.runPython('sys.stdout.getvalue()')
-    py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)') // Clear buffer
+    py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
     return stdout || '(no output)'
   } catch (e: any) {
     return `[Error] ${e.message}`
@@ -62,7 +59,7 @@ function createRunnerHtml(code: string, language: string) {
 <html>
   <head>
     <meta charset="utf-8" />
-    <script src="https://unpkg.com/typescript@5.6.3/lib/typescript.js"></script>
+    <script src="https://unpkg.com/typescript@5.6.3/lib/typescript.js"><\/script>
   </head>
   <body>
     <script>
@@ -99,17 +96,23 @@ function createRunnerHtml(code: string, language: string) {
 
         window.parent.postMessage({ type: 'helix-run', output: logs.join('\\n') || '(no output)' }, '*');
       })();
-    </script>
+    <\/script>
   </body>
 </html>`
+}
+
+// Prevents both mouse and touch events from bubbling into ProseMirror
+function stopAll(e: React.SyntheticEvent) {
+  e.preventDefault()
+  e.stopPropagation()
 }
 
 function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps) {
   const [language, setLanguage] = useState((node.attrs.language as string) || 'typescript')
   const [copied, setCopied] = useState(false)
   const [output, setOutput] = useState<string | null>(null)
+  const [running, setRunning] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const blobUrlRef = useRef<string | null>(null)
 
   const code = node.textContent
 
@@ -124,8 +127,6 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     setLanguage(lang)
     updateAttributes({ language: lang })
   }
-
-  const [running, setRunning] = useState(false)
 
   const handleRun = async () => {
     if (!RUNNABLE.includes(language)) {
@@ -143,18 +144,13 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
       return
     }
 
-    // JS/TS: load via blob URL into hidden iframe.
-    // Blob URLs created by createObjectURL are same-origin by definition,
-    // so allow-same-origin is NOT needed and must NOT be set — it would
-    // allow the sandboxed iframe to access parent cookies/localStorage.
-    const blob = new Blob([createRunnerHtml(code, language)], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
-    blobUrlRef.current = url
+    // FIX: use srcdoc instead of blob URL.
+    // Blob URLs in sandboxed iframes break on iOS Safari and some Android
+    // Chrome when served over HTTPS — srcdoc is universally supported.
     if (iframeRef.current) {
-      iframeRef.current.src = url
+      iframeRef.current.srcdoc = createRunnerHtml(code, language)
     }
-    // setRunning(false) happens in the message listener after output arrives
+    // setRunning(false) happens in the message listener after postMessage arrives
   }
 
   useEffect(() => {
@@ -165,18 +161,21 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
       }
     }
     window.addEventListener('message', onMsg)
-    return () => {
-      window.removeEventListener('message', onMsg)
-      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
-    }
+    return () => window.removeEventListener('message', onMsg)
   }, [])
+
+  // Shared button props: block ALL pointer/touch events from reaching ProseMirror
+  const btnStop = {
+    onMouseDown: stopAll,
+    onTouchStart: stopAll,  // FIX: was missing — caused newline insertion on mobile tap
+    onTouchEnd: stopAll,
+  }
 
   return (
     <NodeViewWrapper>
       <div
         style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '0.75em 0', background: 'var(--code-bg)', position: 'relative' }}
       >
-        {/* contentEditable=false stops ProseMirror from placing the text cursor inside the toolbar */}
         <div
           contentEditable={false}
           style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.6rem', borderBottom: '1px solid var(--border)', background: 'var(--surface)', cursor: 'default', userSelect: 'none' }}
@@ -184,17 +183,19 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           <select
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
-            onMouseDown={(e) => e.stopPropagation()}
+            {...btnStop}
             style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: '11px', outline: 'none', padding: '2px 4px', cursor: 'pointer' }}
           >
             {LANGUAGES.map((l) => (
               <option key={l} value={l}>{l}</option>
             ))}
           </select>
+
           <span style={{ flex: 1 }} />
+
           {RUNNABLE.includes(language) && (
             <button
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+              {...btnStop}
               onClick={handleRun}
               disabled={running}
               style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '3px', color: 'var(--accent)', cursor: running ? 'wait' : 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px', opacity: running ? 0.6 : 1 }}
@@ -202,15 +203,17 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
               {running ? '◉ running' : '▶ Run'}
             </button>
           )}
+
           <button
-            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+            {...btnStop}
             onClick={handleCopy}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: copied ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px' }}
           >
             {copied ? '✓ copied' : 'copy'}
           </button>
+
           <button
-            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+            {...btnStop}
             onClick={deleteNode}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px' }}
           >
@@ -228,7 +231,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           <div style={{ padding: '0.5rem 0.75rem', borderTop: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--accent)', fontFamily: 'var(--font-mono), monospace', fontSize: '12px', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>output › </span>{output}
             <button
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+              {...btnStop}
               onClick={() => setOutput(null)}
               style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px' }}
             >
@@ -236,8 +239,8 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
             </button>
           </div>
         )}
-        {/* sandbox: allow-scripts only — allow-same-origin is intentionally omitted
-             to prevent the iframe from accessing parent cookies or localStorage */}
+
+        {/* srcdoc iframe — no blob URL needed, works on all mobile browsers */}
         <iframe
           ref={iframeRef}
           style={{ display: 'none', width: 0, height: 0, border: 'none' }}

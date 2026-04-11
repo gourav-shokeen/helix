@@ -11,8 +11,6 @@ const LANGUAGES = ['javascript', 'typescript', 'python', 'rust', 'go', 'sql', 'b
 const RUNNABLE = ['javascript', 'typescript', 'python']
 
 // ─── Pyodide ─────────────────────────────────────────────────────────────────
-// BUG FIX: was Promise<void> which made the resolved value disappear,
-// so `py` was always `undefined` → TypeError on every Python run.
 let pyodide: any | null = null
 let pyodideLoading: Promise<any> | null = null
 
@@ -21,9 +19,7 @@ async function initializePyodide(): Promise<any> {
   if (pyodideLoading) return pyodideLoading
 
   pyodideLoading = new Promise<any>((resolve, reject) => {
-    // Guard: don't add duplicate script tags
     if (document.querySelector('script[src*="pyodide"]')) {
-      // Script already in DOM (e.g. hot reload). Wait for loadPyodide to appear.
       const poll = setInterval(async () => {
         if ((globalThis as any).loadPyodide) {
           clearInterval(poll)
@@ -50,7 +46,7 @@ async function initializePyodide(): Promise<any> {
         pyodide.runPython('import sys, io\nsys.stdout = io.StringIO()')
         resolve(pyodide)
       } catch (err) {
-        pyodideLoading = null   // allow retry on next run
+        pyodideLoading = null
         reject(err)
       }
     }
@@ -82,7 +78,6 @@ function cleanPyTraceback(raw: string): string {
 
 async function runPython(code: string): Promise<string> {
   try {
-    // py is now correctly typed as `any` — the actual Pyodide object
     const py = await initializePyodide()
     py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
     try {
@@ -117,33 +112,24 @@ async function loadTypeScript(): Promise<any> {
   return tsLoading
 }
 
-// ─── JS / TS runner — direct eval, no iframe/postMessage/blob ────────────────
+// ─── JS / TS runner ───────────────────────────────────────────────────────────
 async function runJS(code: string, language: string): Promise<string> {
   const logs: string[] = []
-
   const origLog   = console.log.bind(console)
   const origError = console.error.bind(console)
   const origWarn  = console.warn.bind(console)
-
   const serialize = (args: any[]) =>
     args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
-
   console.log   = (...args: any[]) => { logs.push(serialize(args));              origLog(...args)   }
   console.error = (...args: any[]) => { logs.push('[Error] ' + serialize(args)); origError(...args) }
   console.warn  = (...args: any[]) => { logs.push('[Warn] '  + serialize(args)); origWarn(...args)  }
-
   try {
     let executable = code
     if (language === 'typescript') {
       try {
         const ts = await loadTypeScript()
-        executable = ts.transpile(code, {
-          target: ts.ScriptTarget.ES2020,
-          module:  ts.ModuleKind.ESNext,
-        })
-      } catch {
-        // TS compiler failed to load — run as-is
-      }
+        executable = ts.transpile(code, { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext })
+      } catch { /* run as-is */ }
     }
     // eslint-disable-next-line no-eval
     ;(0, eval)(executable)
@@ -154,59 +140,42 @@ async function runJS(code: string, language: string): Promise<string> {
     console.error = origError
     console.warn  = origWarn
   }
-
   return logs.join('\n') || '(no output)'
 }
 
-// ─── Quote / punctuation normalisation ───────────────────────────────────────
-// iOS / macOS keyboards autocorrect straight quotes → curly quotes, dashes →
-// en/em-dashes, etc. These cause syntax errors in every language.
+// ─── Normalisation ────────────────────────────────────────────────────────────
+// 1. Curly/smart quotes and punctuation from iOS/macOS keyboards
 function normalizeQuotes(code: string): string {
   return code
-    .replace(/[\u201C\u201D]/g, '"')              // curly double → "
-    .replace(/[\u2018\u2019\u201A\u201B]/g, "'") // curly single → '
-    .replace(/\u201E/g, '"')                      // double low-9 → "
-    .replace(/[\u2032\u2033]/g, "'")             // prime → '
-    .replace(/[\u2013\u2014]/g, '-')             // en/em-dash → -
-    .replace(/\u2026/g, '...')                    // ellipsis → ...
-    .replace(/\u00A0/g, ' ')                      // non-breaking space → space
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/\u201E/g, '"')
+    .replace(/[\u2032\u2033]/g, "'")
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/\u00A0/g, ' ')
 }
 
-// ─── Python builtin case normaliser ──────────────────────────────────────────
-// iPhone/iPad autocapitalises the first letter when you start a new line.
-// So `print` becomes `Print`, `len` becomes `Len`, etc. — all NameErrors.
-// This normalises common Python builtins to lowercase before execution.
-// Only matches bare identifiers followed by ( or used as keywords — safe to
-// apply globally because these names have no valid capitalised meaning in Python.
+// 2. iOS autocapitalises the first letter of each new line → `print` becomes
+//    `Print`. Fix by lowercasing known Python builtins and keywords everywhere.
 const PYTHON_BUILTINS = [
-  // I/O
-  'print', 'input',
-  // Type constructors
-  'int', 'str', 'float', 'bool', 'complex', 'bytes', 'bytearray',
-  'list', 'dict', 'set', 'frozenset', 'tuple',
-  // Inspection
-  'type', 'isinstance', 'issubclass', 'callable', 'id', 'hash', 'dir', 'vars',
-  'hasattr', 'getattr', 'setattr', 'delattr',
-  // Iterables / functional
-  'len', 'range', 'enumerate', 'zip', 'map', 'filter',
-  'sorted', 'reversed', 'iter', 'next', 'any', 'all',
-  // Math
-  'abs', 'round', 'sum', 'min', 'max', 'pow', 'divmod',
-  // Encoding
-  'ord', 'chr', 'hex', 'oct', 'bin', 'format', 'repr',
-  // Misc
-  'open', 'eval', 'exec', 'compile', 'globals', 'locals', 'super', 'object',
-  // Common keywords that iOS might capitalise at line start
-  'if', 'else', 'elif', 'for', 'while', 'def', 'class', 'return',
-  'import', 'from', 'as', 'with', 'try', 'except', 'finally', 'raise',
-  'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is',
-  'lambda', 'yield', 'assert', 'del', 'global', 'nonlocal',
+  'print','input',
+  'int','str','float','bool','complex','bytes','bytearray',
+  'list','dict','set','frozenset','tuple',
+  'type','isinstance','issubclass','callable','id','hash','dir','vars',
+  'hasattr','getattr','setattr','delattr',
+  'len','range','enumerate','zip','map','filter',
+  'sorted','reversed','iter','next','any','all',
+  'abs','round','sum','min','max','pow','divmod',
+  'ord','chr','hex','oct','bin','format','repr',
+  'open','eval','exec','compile','globals','locals','super','object',
+  'if','else','elif','for','while','def','class','return',
+  'import','from','as','with','try','except','finally','raise',
+  'pass','break','continue','and','or','not','in','is',
+  'lambda','yield','assert','del','global','nonlocal',
 ]
 
 function normalizePythonCode(code: string): string {
-  // Build a single regex that matches any of the builtins as a whole word,
-  // case-insensitively. \b ensures we don't mangle substrings (e.g. "format"
-  // inside "reformat").
   const pattern = new RegExp(
     `\\b(${PYTHON_BUILTINS.map(b => b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`,
     'gi'
@@ -214,9 +183,7 @@ function normalizePythonCode(code: string): string {
   return code.replace(pattern, match => match.toLowerCase())
 }
 
-// ─── Shared pointer-stop (Copy / Delete / Select) ────────────────────────────
-// Kills ProseMirror's native DOM listener before it can insert a newline.
-// Does NOT call preventDefault so the browser still synthesises the click event.
+// ─── Shared pointer-stop for Copy / Delete / Select ──────────────────────────
 const stopPM = (e: React.PointerEvent) => {
   e.stopPropagation()
   e.nativeEvent.stopImmediatePropagation()
@@ -251,15 +218,11 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     setRunning(true)
     setOutput('⏳ Loading runtime...')
     const quotesFixed = normalizeQuotes(code)
-    // For Python: also fix iPhone autocapitalisation of builtins/keywords
-    const normalizedCode = language === 'python'
-      ? normalizePythonCode(quotesFixed)
-      : quotesFixed
+    const normalizedCode = language === 'python' ? normalizePythonCode(quotesFixed) : quotesFixed
     try {
-      const result =
-        language === 'python'
-          ? await runPython(normalizedCode)
-          : await runJS(normalizedCode, language)
+      const result = language === 'python'
+        ? await runPython(normalizedCode)
+        : await runJS(normalizedCode, language)
       setOutput(result)
     } catch (e: any) {
       setOutput(`[Error] ${e.message}`)
@@ -268,40 +231,24 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     }
   }, [language, code])
 
-  // ─── Run button handlers ──────────────────────────────────────────────────
-  // Problem: onPointerDown + stopImmediatePropagation prevents click synthesis
-  // on real mobile devices (works in DevTools emulation because that still uses
-  // mouse events under the hood).
+  // ─── Run button touch/click handlers ─────────────────────────────────────
+  // CRITICAL: No onPointerDown on Run button.
+  // onPointerDown + stopImmediatePropagation kills the native touch event chain
+  // so onTouchEnd never fires → button appears dead on real phones.
+  // The parent div's contentEditable={false} already blocks ProseMirror here.
   //
-  // Fix: use onTouchEnd for touch devices + onClick for desktop mouse.
-  // onTouchEnd fires reliably on all real phones. Calling e.preventDefault()
-  // inside onTouchEnd stops the browser from synthesising a duplicate click event,
-  // so handleRun() is called exactly once regardless of input device.
-  //
-  // Copy/Delete keep the simpler onPointerDown + onClick because they don't have
-  // the async timing gap that makes the mobile click-synthesis failure visible.
-
+  // onTouchEnd  → fires on real mobile, preventDefault stops duplicate click
+  // onClick     → fires on desktop mouse only (suppressed on touch by above)
   const handleRunTouchEnd = useCallback((e: React.TouchEvent<HTMLButtonElement>) => {
     e.stopPropagation()
-    e.nativeEvent.stopImmediatePropagation()
-    e.preventDefault()    // ← prevents the synthesised click → no double-fire
+    e.preventDefault()
     if (running) return
     handleRun()
   }, [running, handleRun])
 
-  const handleRunClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    // On a real touch device this never fires (preventDefault on touchend killed it).
-    // On desktop this is the primary handler.
-    e.stopPropagation()
+  const handleRunClick = useCallback(() => {
     handleRun()
   }, [handleRun])
-
-  const handleRunPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    e.stopPropagation()
-    e.nativeEvent.stopImmediatePropagation()
-    // No preventDefault here — we need the touch event chain to continue
-    // so that onTouchEnd fires below.
-  }, [])
 
   return (
     <NodeViewWrapper>
@@ -325,7 +272,6 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
 
           {RUNNABLE.includes(language) && (
             <button
-              onPointerDown={handleRunPointerDown}
               onTouchEnd={handleRunTouchEnd}
               onClick={handleRunClick}
               disabled={running}

@@ -1,7 +1,7 @@
 'use client'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
 
@@ -134,48 +134,34 @@ async function runJS(code: string, language: string): Promise<string> {
   return logs.join('\n') || '(no output)'
 }
 
-// ─── Event helpers ───────────────────────────────────────────────────────────
-// stopImmediatePropagation is critical — ProseMirror uses native DOM listeners,
-// React's stopPropagation() alone does NOT stop native listeners.
-function nativeStop(e: React.SyntheticEvent) {
+// ─── Quote normalisation ─────────────────────────────────────────────────────
+// iOS/macOS keyboards autocorrect straight quotes to typographic (curly) quotes,
+// dashes to en/em-dashes, etc. These cause syntax errors in every language.
+// Call this on the code string before passing it to any executor.
+function normalizeQuotes(code: string): string {
+  return code
+    .replace(/[\u201C\u201D]/g, '"')   // curly double → straight double
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'") // curly single / apostrophe → straight single
+    .replace(/\u201E/g, '"')           // double low-9 quotation mark → "
+    .replace(/[\u2032\u2033]/g, "'")  // prime / double prime → '
+    .replace(/[\u2013\u2014]/g, '-')  // en-dash / em-dash → hyphen-minus
+    .replace(/\u2026/g, '...')         // ellipsis character → three dots
+    .replace(/\u00A0/g, ' ')           // non-breaking space → regular space
+}
+
+// ─── Unified pointer-down stop ───────────────────────────────────────────────
+// onPointerDown fires before ProseMirror's native DOM listener on both desktop
+// (mouse) and real mobile (touch). stopImmediatePropagation() kills PM's listener
+// before it can insert a newline. We do NOT call preventDefault() so the browser
+// still synthesises the subsequent click event → onClick fires normally.
+// This single pattern replaces the old device-detection approach.
+const btnPointerDown = (e: React.PointerEvent) => {
   e.stopPropagation()
   e.nativeEvent.stopImmediatePropagation()
 }
 
-function useIsTouchDevice() {
-  const [isTouch, setIsTouch] = useState(false)
-  useEffect(() => {
-    setIsTouch(navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
-  }, [])
-  return isTouch
-}
-
-// Desktop: preventDefault on mousedown stops ProseMirror cursor placement
-const desktopBtnStop = {
-  onMouseDown: (e: React.MouseEvent) => { e.preventDefault(); nativeStop(e) },
-}
-
-// Mobile: stopPropagation + stopImmediatePropagation on touch, NO preventDefault
-// so the browser's synthetic click event still fires after touchend → onClick runs
-const mobileBtnStop = {
-  onTouchStart: (e: React.TouchEvent) => nativeStop(e),
-  onTouchEnd:   (e: React.TouchEvent) => nativeStop(e),
-}
-
-// Desktop select: just stop PM from stealing focus
-const desktopSelectStop = {
-  onMouseDown: (e: React.MouseEvent) => nativeStop(e),
-}
-// Mobile select: no handlers at all — native dropdown must open freely
-const mobileSelectStop = {}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps) {
-  const isTouch = useIsTouchDevice()
-
-  const btnStop = isTouch ? mobileBtnStop  : desktopBtnStop
-  const selStop = isTouch ? mobileSelectStop : desktopSelectStop
-
   const [language, setLanguage] = useState((node.attrs.language as string) || 'typescript')
   const [copied,   setCopied]   = useState(false)
   const [output,   setOutput]   = useState<string | null>(null)
@@ -202,11 +188,14 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     }
     setRunning(true)
     setOutput('Running...')
+    // Normalise typographic quotes/dashes before any language branching so that
+    // iOS/macOS autocorrect substitutions don't cause syntax errors.
+    const normalizedCode = normalizeQuotes(code)
     try {
       const result =
         language === 'python'
-          ? await runPython(code)
-          : await runJS(code, language)
+          ? await runPython(normalizedCode)
+          : await runJS(normalizedCode, language)
       setOutput(result)
     } catch (e: any) {
       setOutput(`[Error] ${e.message}`)
@@ -224,8 +213,8 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
         >
           <select
             value={language}
+            onPointerDown={btnPointerDown}
             onChange={(e) => handleLanguageChange(e.target.value)}
-            {...selStop}
             style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: '11px', outline: 'none', padding: '2px 4px', cursor: 'pointer' }}
           >
             {LANGUAGES.map((l) => (
@@ -237,7 +226,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
 
           {RUNNABLE.includes(language) && (
             <button
-              {...btnStop}
+              onPointerDown={btnPointerDown}
               onClick={handleRun}
               disabled={running}
               style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '3px', color: 'var(--accent)', cursor: running ? 'wait' : 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px', opacity: running ? 0.6 : 1 }}
@@ -247,7 +236,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           )}
 
           <button
-            {...btnStop}
+            onPointerDown={btnPointerDown}
             onClick={handleCopy}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: copied ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px' }}
           >
@@ -255,7 +244,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           </button>
 
           <button
-            {...btnStop}
+            onPointerDown={btnPointerDown}
             onClick={deleteNode}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px' }}
           >
@@ -273,7 +262,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           <div style={{ padding: '0.5rem 0.75rem', borderTop: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--accent)', fontFamily: 'var(--font-mono), monospace', fontSize: '12px', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>output › </span>{output}
             <button
-              {...btnStop}
+              onPointerDown={btnPointerDown}
               onClick={() => setOutput(null)}
               style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px' }}
             >

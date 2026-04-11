@@ -172,6 +172,48 @@ function normalizeQuotes(code: string): string {
     .replace(/\u00A0/g, ' ')                      // non-breaking space → space
 }
 
+// ─── Python builtin case normaliser ──────────────────────────────────────────
+// iPhone/iPad autocapitalises the first letter when you start a new line.
+// So `print` becomes `Print`, `len` becomes `Len`, etc. — all NameErrors.
+// This normalises common Python builtins to lowercase before execution.
+// Only matches bare identifiers followed by ( or used as keywords — safe to
+// apply globally because these names have no valid capitalised meaning in Python.
+const PYTHON_BUILTINS = [
+  // I/O
+  'print', 'input',
+  // Type constructors
+  'int', 'str', 'float', 'bool', 'complex', 'bytes', 'bytearray',
+  'list', 'dict', 'set', 'frozenset', 'tuple',
+  // Inspection
+  'type', 'isinstance', 'issubclass', 'callable', 'id', 'hash', 'dir', 'vars',
+  'hasattr', 'getattr', 'setattr', 'delattr',
+  // Iterables / functional
+  'len', 'range', 'enumerate', 'zip', 'map', 'filter',
+  'sorted', 'reversed', 'iter', 'next', 'any', 'all',
+  // Math
+  'abs', 'round', 'sum', 'min', 'max', 'pow', 'divmod',
+  // Encoding
+  'ord', 'chr', 'hex', 'oct', 'bin', 'format', 'repr',
+  // Misc
+  'open', 'eval', 'exec', 'compile', 'globals', 'locals', 'super', 'object',
+  // Common keywords that iOS might capitalise at line start
+  'if', 'else', 'elif', 'for', 'while', 'def', 'class', 'return',
+  'import', 'from', 'as', 'with', 'try', 'except', 'finally', 'raise',
+  'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is',
+  'lambda', 'yield', 'assert', 'del', 'global', 'nonlocal',
+]
+
+function normalizePythonCode(code: string): string {
+  // Build a single regex that matches any of the builtins as a whole word,
+  // case-insensitively. \b ensures we don't mangle substrings (e.g. "format"
+  // inside "reformat").
+  const pattern = new RegExp(
+    `\\b(${PYTHON_BUILTINS.map(b => b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`,
+    'gi'
+  )
+  return code.replace(pattern, match => match.toLowerCase())
+}
+
 // ─── Shared pointer-stop (Copy / Delete / Select) ────────────────────────────
 // Kills ProseMirror's native DOM listener before it can insert a newline.
 // Does NOT call preventDefault so the browser still synthesises the click event.
@@ -208,7 +250,11 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     }
     setRunning(true)
     setOutput('⏳ Loading runtime...')
-    const normalizedCode = normalizeQuotes(code)
+    const quotesFixed = normalizeQuotes(code)
+    // For Python: also fix iPhone autocapitalisation of builtins/keywords
+    const normalizedCode = language === 'python'
+      ? normalizePythonCode(quotesFixed)
+      : quotesFixed
     try {
       const result =
         language === 'python'

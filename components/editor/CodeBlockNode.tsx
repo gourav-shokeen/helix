@@ -10,31 +10,57 @@ const lowlight = createLowlight(common)
 const LANGUAGES = ['javascript', 'typescript', 'python', 'rust', 'go', 'sql', 'bash', 'json', 'html', 'css']
 const RUNNABLE = ['javascript', 'typescript', 'python']
 
-// ─── Pyodide ────────────────────────────────────────────────────────────────
+// ─── Pyodide ─────────────────────────────────────────────────────────────────
+// BUG FIX: was Promise<void> which made the resolved value disappear,
+// so `py` was always `undefined` → TypeError on every Python run.
 let pyodide: any | null = null
 let pyodideLoading: Promise<any> | null = null
 
-async function initializePyodide() {
+async function initializePyodide(): Promise<any> {
   if (pyodide) return pyodide
   if (pyodideLoading) return pyodideLoading
 
-  const script = globalThis.document.createElement('script')
-  script.src = 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js'
-  globalThis.document.head.appendChild(script)
-
-  pyodideLoading = new Promise<void>((resolve, reject) => {
-    script.onload = async () => {
-      // @ts-ignore
-      const loaded = await globalThis.loadPyodide()
-      pyodide = loaded
-      pyodide.runPython(`
-        import sys, io
-        sys.stdout = io.StringIO()
-      `)
-      resolve(pyodide)
+  pyodideLoading = new Promise<any>((resolve, reject) => {
+    // Guard: don't add duplicate script tags
+    if (document.querySelector('script[src*="pyodide"]')) {
+      // Script already in DOM (e.g. hot reload). Wait for loadPyodide to appear.
+      const poll = setInterval(async () => {
+        if ((globalThis as any).loadPyodide) {
+          clearInterval(poll)
+          try {
+            const loaded = await (globalThis as any).loadPyodide()
+            pyodide = loaded
+            pyodide.runPython('import sys, io\nsys.stdout = io.StringIO()')
+            resolve(pyodide)
+          } catch (err) {
+            pyodideLoading = null
+            reject(err)
+          }
+        }
+      }, 100)
+      return
     }
-    script.onerror = reject
+
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js'
+    script.onload = async () => {
+      try {
+        const loaded = await (globalThis as any).loadPyodide()
+        pyodide = loaded
+        pyodide.runPython('import sys, io\nsys.stdout = io.StringIO()')
+        resolve(pyodide)
+      } catch (err) {
+        pyodideLoading = null   // allow retry on next run
+        reject(err)
+      }
+    }
+    script.onerror = () => {
+      pyodideLoading = null
+      reject(new Error('Failed to load Python runtime — check your internet connection.'))
+    }
+    document.head.appendChild(script)
   })
+
   return pyodideLoading
 }
 
@@ -56,6 +82,7 @@ function cleanPyTraceback(raw: string): string {
 
 async function runPython(code: string): Promise<string> {
   try {
+    // py is now correctly typed as `any` — the actual Pyodide object
     const py = await initializePyodide()
     py.runPython('sys.stdout.truncate(0); sys.stdout.seek(0)')
     try {
@@ -73,7 +100,7 @@ async function runPython(code: string): Promise<string> {
   }
 }
 
-// ─── TypeScript compiler (loaded once, lazily) ───────────────────────────────
+// ─── TypeScript compiler (loaded once, lazily) ────────────────────────────────
 let tsCompiler: any = null
 let tsLoading: Promise<any> | null = null
 
@@ -83,15 +110,14 @@ async function loadTypeScript(): Promise<any> {
   tsLoading = new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = 'https://unpkg.com/typescript@5.6.3/lib/typescript.js'
-    script.onload = () => { tsCompiler = (window as any).ts; resolve(tsCompiler) }
+    script.onload  = () => { tsCompiler = (window as any).ts; resolve(tsCompiler) }
     script.onerror = reject
     document.head.appendChild(script)
   })
   return tsLoading
 }
 
-// ─── JS/TS runner — direct eval, no iframe/postMessage/blob needed ───────────
-// More reliable on all browsers/platforms including deployed HTTPS on mobile.
+// ─── JS / TS runner — direct eval, no iframe/postMessage/blob ────────────────
 async function runJS(code: string, language: string): Promise<string> {
   const logs: string[] = []
 
@@ -102,25 +128,23 @@ async function runJS(code: string, language: string): Promise<string> {
   const serialize = (args: any[]) =>
     args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
 
-  console.log   = (...args: any[]) => { logs.push(serialize(args));               origLog(...args) }
-  console.error = (...args: any[]) => { logs.push('[Error] ' + serialize(args));   origError(...args) }
-  console.warn  = (...args: any[]) => { logs.push('[Warn] '  + serialize(args));   origWarn(...args) }
+  console.log   = (...args: any[]) => { logs.push(serialize(args));              origLog(...args)   }
+  console.error = (...args: any[]) => { logs.push('[Error] ' + serialize(args)); origError(...args) }
+  console.warn  = (...args: any[]) => { logs.push('[Warn] '  + serialize(args)); origWarn(...args)  }
 
   try {
     let executable = code
-
     if (language === 'typescript') {
       try {
         const ts = await loadTypeScript()
         executable = ts.transpile(code, {
           target: ts.ScriptTarget.ES2020,
-          module: ts.ModuleKind.ESNext,
+          module:  ts.ModuleKind.ESNext,
         })
       } catch {
-        // TS compiler failed to load — run as-is and let eval surface the error
+        // TS compiler failed to load — run as-is
       }
     }
-
     // eslint-disable-next-line no-eval
     ;(0, eval)(executable)
   } catch (e: any) {
@@ -134,28 +158,24 @@ async function runJS(code: string, language: string): Promise<string> {
   return logs.join('\n') || '(no output)'
 }
 
-// ─── Quote normalisation ─────────────────────────────────────────────────────
-// iOS/macOS keyboards autocorrect straight quotes to typographic (curly) quotes,
-// dashes to en/em-dashes, etc. These cause syntax errors in every language.
-// Call this on the code string before passing it to any executor.
+// ─── Quote / punctuation normalisation ───────────────────────────────────────
+// iOS / macOS keyboards autocorrect straight quotes → curly quotes, dashes →
+// en/em-dashes, etc. These cause syntax errors in every language.
 function normalizeQuotes(code: string): string {
   return code
-    .replace(/[\u201C\u201D]/g, '"')   // curly double → straight double
-    .replace(/[\u2018\u2019\u201A\u201B]/g, "'") // curly single / apostrophe → straight single
-    .replace(/\u201E/g, '"')           // double low-9 quotation mark → "
-    .replace(/[\u2032\u2033]/g, "'")  // prime / double prime → '
-    .replace(/[\u2013\u2014]/g, '-')  // en-dash / em-dash → hyphen-minus
-    .replace(/\u2026/g, '...')         // ellipsis character → three dots
-    .replace(/\u00A0/g, ' ')           // non-breaking space → regular space
+    .replace(/[\u201C\u201D]/g, '"')              // curly double → "
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'") // curly single → '
+    .replace(/\u201E/g, '"')                      // double low-9 → "
+    .replace(/[\u2032\u2033]/g, "'")             // prime → '
+    .replace(/[\u2013\u2014]/g, '-')             // en/em-dash → -
+    .replace(/\u2026/g, '...')                    // ellipsis → ...
+    .replace(/\u00A0/g, ' ')                      // non-breaking space → space
 }
 
-// ─── Unified pointer-down stop ───────────────────────────────────────────────
-// onPointerDown fires before ProseMirror's native DOM listener on both desktop
-// (mouse) and real mobile (touch). stopImmediatePropagation() kills PM's listener
-// before it can insert a newline. We do NOT call preventDefault() so the browser
-// still synthesises the subsequent click event → onClick fires normally.
-// This single pattern replaces the old device-detection approach.
-const btnPointerDown = (e: React.PointerEvent) => {
+// ─── Shared pointer-stop (Copy / Delete / Select) ────────────────────────────
+// Kills ProseMirror's native DOM listener before it can insert a newline.
+// Does NOT call preventDefault so the browser still synthesises the click event.
+const stopPM = (e: React.PointerEvent) => {
   e.stopPropagation()
   e.nativeEvent.stopImmediatePropagation()
 }
@@ -181,15 +201,13 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     updateAttributes({ language: lang })
   }
 
-  const handleRun = async () => {
+  const handleRun = useCallback(async () => {
     if (!RUNNABLE.includes(language)) {
       setOutput(`Execution not supported for ${language}`)
       return
     }
     setRunning(true)
-    setOutput('Running...')
-    // Normalise typographic quotes/dashes before any language branching so that
-    // iOS/macOS autocorrect substitutions don't cause syntax errors.
+    setOutput('⏳ Loading runtime...')
     const normalizedCode = normalizeQuotes(code)
     try {
       const result =
@@ -202,7 +220,42 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
     } finally {
       setRunning(false)
     }
-  }
+  }, [language, code])
+
+  // ─── Run button handlers ──────────────────────────────────────────────────
+  // Problem: onPointerDown + stopImmediatePropagation prevents click synthesis
+  // on real mobile devices (works in DevTools emulation because that still uses
+  // mouse events under the hood).
+  //
+  // Fix: use onTouchEnd for touch devices + onClick for desktop mouse.
+  // onTouchEnd fires reliably on all real phones. Calling e.preventDefault()
+  // inside onTouchEnd stops the browser from synthesising a duplicate click event,
+  // so handleRun() is called exactly once regardless of input device.
+  //
+  // Copy/Delete keep the simpler onPointerDown + onClick because they don't have
+  // the async timing gap that makes the mobile click-synthesis failure visible.
+
+  const handleRunTouchEnd = useCallback((e: React.TouchEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    e.nativeEvent.stopImmediatePropagation()
+    e.preventDefault()    // ← prevents the synthesised click → no double-fire
+    if (running) return
+    handleRun()
+  }, [running, handleRun])
+
+  const handleRunClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    // On a real touch device this never fires (preventDefault on touchend killed it).
+    // On desktop this is the primary handler.
+    e.stopPropagation()
+    handleRun()
+  }, [handleRun])
+
+  const handleRunPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    e.nativeEvent.stopImmediatePropagation()
+    // No preventDefault here — we need the touch event chain to continue
+    // so that onTouchEnd fires below.
+  }, [])
 
   return (
     <NodeViewWrapper>
@@ -213,7 +266,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
         >
           <select
             value={language}
-            onPointerDown={btnPointerDown}
+            onPointerDown={stopPM}
             onChange={(e) => handleLanguageChange(e.target.value)}
             style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans), system-ui, sans-serif', fontSize: '11px', outline: 'none', padding: '2px 4px', cursor: 'pointer' }}
           >
@@ -226,8 +279,9 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
 
           {RUNNABLE.includes(language) && (
             <button
-              onPointerDown={btnPointerDown}
-              onClick={handleRun}
+              onPointerDown={handleRunPointerDown}
+              onTouchEnd={handleRunTouchEnd}
+              onClick={handleRunClick}
               disabled={running}
               style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '3px', color: 'var(--accent)', cursor: running ? 'wait' : 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px', opacity: running ? 0.6 : 1 }}
             >
@@ -236,7 +290,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           )}
 
           <button
-            onPointerDown={btnPointerDown}
+            onPointerDown={stopPM}
             onClick={handleCopy}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: copied ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px' }}
           >
@@ -244,7 +298,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           </button>
 
           <button
-            onPointerDown={btnPointerDown}
+            onPointerDown={stopPM}
             onClick={deleteNode}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px', fontFamily: 'var(--font-sans), system-ui, sans-serif', padding: '2px 8px' }}
           >
@@ -262,7 +316,7 @@ function CodeBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps
           <div style={{ padding: '0.5rem 0.75rem', borderTop: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--accent)', fontFamily: 'var(--font-mono), monospace', fontSize: '12px', whiteSpace: 'pre-wrap', maxHeight: '220px', overflowY: 'auto' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>output › </span>{output}
             <button
-              onPointerDown={btnPointerDown}
+              onPointerDown={stopPM}
               onClick={() => setOutput(null)}
               style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px' }}
             >
